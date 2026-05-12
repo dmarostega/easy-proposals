@@ -67,16 +67,27 @@ class ProposalSaasTest extends TestCase
         $this->assertNotNull($proposal->approved_at);
     }
 
-    public function test_admin_user_update_rejects_email_already_used_by_another_user(): void
+    public function test_inactive_authenticated_user_is_logged_out_from_protected_routes(): void
+    {
+        $user = User::factory()->create([
+            'plan_id' => Plan::factory()->create()->id,
+            'is_active' => false,
+        ]);
+
+        $this->actingAs($user)->get(route('dashboard'))->assertForbidden();
+        $this->assertGuest();
+    }
+
+    public function test_admin_user_update_rejects_duplicate_email(): void
     {
         $plan = Plan::factory()->create();
         $admin = User::factory()->create(['plan_id' => $plan->id, 'role' => UserRole::Admin]);
-        $existingUser = User::factory()->create(['plan_id' => $plan->id, 'email' => 'existing@example.test']);
-        $userToUpdate = User::factory()->create(['plan_id' => $plan->id, 'email' => 'update-me@example.test']);
+        $existingUser = User::factory()->create(['plan_id' => $plan->id, 'email' => 'existing@example.com']);
+        $updatedUser = User::factory()->create(['plan_id' => $plan->id, 'email' => 'updated@example.com']);
 
         $this->actingAs($admin)
-            ->putJson(route('admin.usuarios.update', $userToUpdate), [
-                'name' => $userToUpdate->name,
+            ->putJson(route('admin.usuarios.update', $updatedUser), [
+                'name' => $updatedUser->name,
                 'email' => $existingUser->email,
                 'plan_id' => $plan->id,
                 'role' => UserRole::User->value,

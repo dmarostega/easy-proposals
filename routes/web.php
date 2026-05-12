@@ -31,7 +31,7 @@ Route::get('/p/{token}', [PublicProposalController::class, 'show'])->name('publi
 Route::post('/p/{token}/aprovar', [PublicProposalController::class, 'approve'])->name('public.proposals.approve');
 Route::post('/p/{token}/recusar', [PublicProposalController::class, 'reject'])->name('public.proposals.reject');
 
-Route::middleware('auth')->group(function (): void {
+Route::middleware(['auth', 'active'])->group(function (): void {
     Route::get('/dashboard', DashboardController::class)->name('dashboard');
     Route::apiResource('clientes', CustomerController::class)->parameters(['clientes' => 'customer']);
     Route::apiResource('servicos', ServiceItemController::class)->parameters(['servicos' => 'serviceItem']);
@@ -39,7 +39,7 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/propostas/{proposal}/pdf', [ProposalController::class, 'pdf'])->name('propostas.pdf');
 });
 
-Route::prefix('admin')->as('admin.')->middleware(['auth', 'admin'])->group(function (): void {
+Route::prefix('admin')->as('admin.')->middleware(['auth', 'active', 'admin'])->group(function (): void {
     Route::get('/relatorios', ReportController::class)->name('reports');
     Route::apiResource('planos', AdminPlanController::class)->parameters(['planos' => 'plan']);
     Route::apiResource('usuarios', AdminUserController::class)->parameters(['usuarios' => 'user'])->only(['index', 'show', 'update', 'destroy']);
