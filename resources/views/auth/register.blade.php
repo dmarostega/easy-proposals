@@ -1,4 +1,13 @@
 @extends('layouts.public')
+
 @section('content')
-<form method="post" action="{{ route('register') }}" class="mx-auto max-w-md rounded-2xl bg-white p-8 shadow-sm">@csrf<h1 class="mb-6 text-2xl font-bold">Criar conta</h1><label class="block">Nome<input class="mt-1 w-full rounded border p-2" name="name" required></label><label class="mt-4 block">E-mail<input class="mt-1 w-full rounded border p-2" name="email" type="email" required></label><label class="mt-4 block">Senha<input class="mt-1 w-full rounded border p-2" name="password" type="password" required></label><label class="mt-4 block">Confirmar senha<input class="mt-1 w-full rounded border p-2" name="password_confirmation" type="password" required></label><button class="btn-primary mt-6 rounded px-4 py-2">Cadastrar</button></form>
+<form method="post" action="{{ route('register') }}" class="mx-auto max-w-md rounded-2xl bg-white p-8 shadow-sm">
+    @csrf
+    <h1 class="mb-6 text-2xl font-bold">Criar conta</h1>
+    <label class="block">Nome<input class="mt-1 w-full rounded border p-2" name="name" required></label>
+    <label class="mt-4 block">E-mail<input class="mt-1 w-full rounded border p-2" name="email" type="email" required></label>
+    <label class="mt-4 block">Senha<input class="mt-1 w-full rounded border p-2" name="password" type="password" required></label>
+    <label class="mt-4 block">Confirmar senha<input class="mt-1 w-full rounded border p-2" name="password_confirmation" type="password" required></label>
+    <button class="btn-primary mt-6 rounded px-4 py-2">Cadastrar</button>
+</form>
 @endsection
