@@ -7,6 +7,7 @@ use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\App\CustomerController;
 use App\Http\Controllers\App\DashboardController;
 use App\Http\Controllers\App\ProposalController;
+use App\Http\Controllers\App\ProfileController;
 use App\Http\Controllers\App\ServiceItemController;
 use App\Http\Controllers\Public\PageController;
 use App\Http\Controllers\Public\PublicProposalController;
@@ -33,6 +34,8 @@ Route::post('/p/{token}/recusar', [PublicProposalController::class, 'reject'])->
 
 Route::middleware(['auth', 'active'])->group(function (): void {
     Route::get('/dashboard', DashboardController::class)->name('dashboard');
+    Route::get('/perfil', [ProfileController::class, 'edit'])->name('profile.edit');
+    Route::put('/perfil', [ProfileController::class, 'update'])->name('profile.update');
     Route::apiResource('clientes', CustomerController::class)->parameters(['clientes' => 'customer']);
     Route::apiResource('servicos', ServiceItemController::class)->parameters(['servicos' => 'serviceItem']);
     Route::apiResource('propostas', ProposalController::class)->parameters(['propostas' => 'proposal'])->except(['update']);

@@ -27,14 +27,20 @@
     </script>
     @vite(['resources/css/app.css', 'resources/js/app.ts'])
 </head>
-<body class="bg-slate-50 text-slate-900" style="--color-primary:#2563eb;--color-secondary:#0f172a">
+<body class="bg-slate-50 text-slate-900" style="--color-primary:{{ auth()->user()?->primary_color ?? '#2563eb' }};--color-secondary:{{ auth()->user()?->secondary_color ?? '#0f172a' }}">
 <header class="mx-auto flex max-w-6xl items-center justify-between p-6">
     <a href="{{ route('home') }}" class="text-xl font-bold text-[var(--color-primary)]">Proposta Fácil</a>
-    <nav class="flex gap-4 text-sm">
+    <nav class="flex items-center gap-4 text-sm">
         <a href="{{ route('features') }}">Recursos</a>
         <a href="{{ route('pricing') }}">Preços</a>
         <a href="{{ route('terms') }}">Termos</a>
         <a href="{{ route('privacy') }}">Privacidade</a>
+        @auth
+            <a href="{{ route('dashboard') }}">Dashboard</a>
+            <a href="{{ route('profile.edit') }}">Perfil</a>
+        @else
+            <a href="{{ route('login') }}">Entrar</a>
+        @endauth
     </nav>
 </header>
 <main class="mx-auto max-w-6xl p-6">@yield('content')</main>
