@@ -10,6 +10,8 @@ use App\Models\Proposal;
 use App\Models\User;
 use App\Services\ProposalService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
@@ -67,6 +69,33 @@ class ProposalSaasTest extends TestCase
         $this->assertNotNull($proposal->approved_at);
     }
 
+    public function test_public_proposal_link_uses_owner_branding_for_guests(): void
+    {
+        $plan = Plan::factory()->unlimited()->create(['allows_custom_logo' => true]);
+        $user = User::factory()->create([
+            'plan_id' => $plan->id,
+            'business_name' => 'Studio Criativo',
+            'logo_path' => 'logos/studio.png',
+            'primary_color' => '#123456',
+            'secondary_color' => '#654321',
+            'default_footer_text' => 'Obrigado pela preferência.',
+        ]);
+        $customer = Customer::factory()->create(['user_id' => $user->id]);
+        $proposal = app(ProposalService::class)->create($user, [
+            'customer_id' => $customer->id,
+            'title' => 'Identidade visual',
+            'items' => [['description' => 'Logo', 'quantity' => 1, 'unit_price' => 300]],
+        ]);
+
+        $this->get(route('public.proposals.show', $proposal->publicToken->token))
+            ->assertOk()
+            ->assertSee('--color-primary:#123456', false)
+            ->assertSee('--color-secondary:#654321', false)
+            ->assertSee('/storage/logos/studio.png', false)
+            ->assertSee('Logo Studio Criativo')
+            ->assertSee('Obrigado pela preferência.');
+    }
+
     public function test_inactive_authenticated_user_is_logged_out_from_protected_routes(): void
     {
         $user = User::factory()->create([
@@ -95,6 +124,47 @@ class ProposalSaasTest extends TestCase
             ])
             ->assertUnprocessable()
             ->assertJsonValidationErrors('email');
+    }
+
+
+    public function test_user_with_branding_plan_can_upload_logo_and_update_profile(): void
+    {
+        Storage::fake('public');
+        $plan = Plan::factory()->create(['allows_custom_logo' => true]);
+        $user = User::factory()->create(['plan_id' => $plan->id]);
+
+        $response = $this->actingAs($user)->put(route('profile.update'), [
+            'business_name' => 'Studio Criativo',
+            'contact_details' => 'contato@example.com',
+            'default_footer_text' => 'Obrigado pela preferência.',
+            'primary_color' => '#123456',
+            'secondary_color' => '#654321',
+            'logo' => UploadedFile::fake()->image('logo.png', 400, 200),
+        ]);
+
+        $response->assertRedirect();
+        $user->refresh();
+
+        $this->assertSame('Studio Criativo', $user->business_name);
+        $this->assertSame('#123456', $user->primary_color);
+        $this->assertNotNull($user->logo_path);
+        Storage::disk('public')->assertExists($user->logo_path);
+    }
+
+    public function test_logo_upload_requires_plan_permission(): void
+    {
+        Storage::fake('public');
+        $plan = Plan::factory()->create(['allows_custom_logo' => false]);
+        $user = User::factory()->create(['plan_id' => $plan->id]);
+
+        $this->actingAs($user)->put(route('profile.update'), [
+            'business_name' => 'Sem marca',
+            'primary_color' => '#123456',
+            'secondary_color' => '#654321',
+            'logo' => UploadedFile::fake()->image('logo.png', 400, 200),
+        ])->assertSessionHasErrors('logo');
+
+        $this->assertNull($user->fresh()->logo_path);
     }
 
     public function test_admin_area_is_protected_by_admin_role(): void
