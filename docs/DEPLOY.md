@@ -1,82 +1,62 @@
-# Deploy — Easy Proposals
+# Deploy em VPS Hostinger KVM 1
 
-Guia de deploy do projeto **Easy Proposals** em uma VPS Hostinger KVM 1 usando CloudPanel, Nginx, PHP-FPM, MySQL, Node.js, Composer e Cloudflare.
+Passos para Nginx, PHP-FPM, MySQL e Node.
 
----
-
-## 1. Visão geral
-
-O **Easy Proposals** é um SaaS desenvolvido com:
-
-- Laravel 13
-- Vue.js 3
-- TypeScript
-- MySQL
-- Tailwind CSS
-- Vite
-- Inertia.js
-- Nginx
-- PHP-FPM
-- Cloudflare
-
-Este documento descreve o processo básico para publicar o projeto em produção.
-
----
-
-## 2. Ambiente previsto
-
-Infraestrutura esperada:
-
-- VPS Hostinger KVM 1
-- CloudPanel
-- Nginx
-- PHP-FPM
-- MySQL/MariaDB
-- Composer
-- Node.js
-- NPM
-- Git
-- Certificado SSL válido
-- Cloudflare gerenciando DNS
-
----
-
-## 3. Requisitos mínimos
-
-Verificar se a VPS possui:
+## 1. Preparar `.env`
 
 ```bash
-php -v
-composer -V
-node -v
-npm -v
-mysql --version
-git --version
+cp .env.example .env
+php artisan key:generate
+```
 
-## Cloudflare
+Configure `APP_URL`, `DB_CONNECTION=mysql`, `DB_HOST`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`, mail e cache conforme a VPS.
 
-Este projeto pode ser publicado atrás do Cloudflare.
+## 2. Instalar dependências
 
-Configuração recomendada:
+```bash
+composer install --no-dev --optimize-autoloader
+npm install
+npm run build
+```
 
-- DNS apontando para o IP da VPS.
-- Proxy ativado, se desejado.
-- SSL/TLS em modo Full ou Full (strict), preferencialmente Full (strict) quando houver certificado válido na VPS.
-- Não usar Flexible SSL em produção Laravel, para evitar problemas de redirect HTTPS, mixed content e loop de redirecionamento.
-- Garantir que `APP_URL` esteja configurado com `https://seudominio.com.br`.
-- Após alterações de DNS, SSL ou build front-end, limpar cache do Cloudflare se necessário.
+## 3. Banco, storage e permissões
 
-## Atenção com cache
+```bash
+php artisan migrate --seed --force
+php artisan storage:link
+sudo chown -R www-data:www-data storage bootstrap/cache
+sudo chmod -R ug+rw storage bootstrap/cache
+```
 
-Evitar cache agressivo em rotas autenticadas, painel admin, dashboard e APIs.
+## 4. Cache de produção
 
-Rotas que não devem ser cacheadas:
+```bash
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+```
 
-- `/login`
-- `/register`
-- `/dashboard`
-- `/admin/*`
-- `/api/*`
-- rotas autenticadas em geral
+## 5. Nginx
 
-Páginas públicas como Home, Preços, Recursos, Termos e Política de Privacidade podem usar cache com cuidado.
+Aponte o `root` do virtual host para `public/`, habilite PHP-FPM e proteja arquivos ocultos. Exemplo de bloco principal:
+
+```nginx
+root /var/www/proposta-facil/public;
+index index.php;
+location / { try_files $uri $uri/ /index.php?$query_string; }
+location ~ \.php$ { include snippets/fastcgi-php.conf; fastcgi_pass unix:/run/php/php8.3-fpm.sock; }
+location ~ /\.(?!well-known).* { deny all; }
+```
+
+## 6. Atualização de release
+
+```bash
+git pull
+composer install --no-dev --optimize-autoloader
+npm install
+npm run build
+php artisan migrate --force
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+```

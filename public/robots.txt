@@ -1,2 +1,13 @@
 User-agent: *
-Disallow:
+Allow: /
+Allow: /recursos
+Allow: /precos
+Allow: /termos-de-uso
+Allow: /politica-de-privacidade
+Disallow: /admin
+Disallow: /dashboard
+Disallow: /clientes
+Disallow: /servicos
+Disallow: /propostas
+Disallow: /p/
+Sitemap: https://propostafacil.example/sitemap.xml
