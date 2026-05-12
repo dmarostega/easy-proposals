@@ -69,6 +69,33 @@ class ProposalSaasTest extends TestCase
         $this->assertNotNull($proposal->approved_at);
     }
 
+    public function test_public_proposal_link_uses_owner_branding_for_guests(): void
+    {
+        $plan = Plan::factory()->unlimited()->create(['allows_custom_logo' => true]);
+        $user = User::factory()->create([
+            'plan_id' => $plan->id,
+            'business_name' => 'Studio Criativo',
+            'logo_path' => 'logos/studio.png',
+            'primary_color' => '#123456',
+            'secondary_color' => '#654321',
+            'default_footer_text' => 'Obrigado pela preferência.',
+        ]);
+        $customer = Customer::factory()->create(['user_id' => $user->id]);
+        $proposal = app(ProposalService::class)->create($user, [
+            'customer_id' => $customer->id,
+            'title' => 'Identidade visual',
+            'items' => [['description' => 'Logo', 'quantity' => 1, 'unit_price' => 300]],
+        ]);
+
+        $this->get(route('public.proposals.show', $proposal->publicToken->token))
+            ->assertOk()
+            ->assertSee('--color-primary:#123456', false)
+            ->assertSee('--color-secondary:#654321', false)
+            ->assertSee('/storage/logos/studio.png', false)
+            ->assertSee('Logo Studio Criativo')
+            ->assertSee('Obrigado pela preferência.');
+    }
+
     public function test_inactive_authenticated_user_is_logged_out_from_protected_routes(): void
     {
         $user = User::factory()->create([
