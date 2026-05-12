@@ -67,6 +67,25 @@ class ProposalSaasTest extends TestCase
         $this->assertNotNull($proposal->approved_at);
     }
 
+    public function test_admin_user_update_rejects_email_already_used_by_another_user(): void
+    {
+        $plan = Plan::factory()->create();
+        $admin = User::factory()->create(['plan_id' => $plan->id, 'role' => UserRole::Admin]);
+        $existingUser = User::factory()->create(['plan_id' => $plan->id, 'email' => 'existing@example.test']);
+        $userToUpdate = User::factory()->create(['plan_id' => $plan->id, 'email' => 'update-me@example.test']);
+
+        $this->actingAs($admin)
+            ->putJson(route('admin.usuarios.update', $userToUpdate), [
+                'name' => $userToUpdate->name,
+                'email' => $existingUser->email,
+                'plan_id' => $plan->id,
+                'role' => UserRole::User->value,
+                'is_active' => true,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('email');
+    }
+
     public function test_admin_area_is_protected_by_admin_role(): void
     {
         $plan = Plan::factory()->create();
