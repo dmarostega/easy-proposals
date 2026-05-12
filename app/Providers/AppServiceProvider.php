@@ -9,7 +9,9 @@ use App\Policies\CustomerPolicy;
 use App\Policies\ProposalPolicy;
 use App\Policies\ServiceItemPolicy;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
+
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -20,5 +22,8 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(Customer::class, CustomerPolicy::class);
         Gate::policy(ServiceItem::class, ServiceItemPolicy::class);
         Gate::policy(Proposal::class, ProposalPolicy::class);
+
+        Schema::defaultStringLength(191);
+
     }
 }

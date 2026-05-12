@@ -185,9 +185,7 @@ Importante:
 
 Criar um SaaS em Laravel 13, Vue.js, TypeScript e MySQL para propostas comerciais.
 
-## Prompt 
-
-Regras globais do projeto:
+### Regras globais do projeto:
 
 1. Stack obrigatória:
    - Laravel 13
@@ -257,10 +255,10 @@ Regras globais do projeto:
      - cache de config, routes e views
 
 8. Documentação:
-   - Criar README.md técnico.
-   - Criar docs/MANUAL.md para uso do sistema.
-   - Criar docs/ROADMAP.md com melhorias futuras.
-   - Criar docs/DEPLOY.md.
+   - Criar / Atualizart README.md técnico.
+   - Criar / Atualizart docs/MANUAL.md para uso do sistema.
+   - Criar / Atualizart docs/ROADMAP.md com melhorias futuras.
+   - Criar / Atualizart docs/DEPLOY.md.
 
 9. Segurança:
    - Isolar dados por usuário.
