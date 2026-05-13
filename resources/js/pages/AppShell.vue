@@ -168,6 +168,7 @@ export default defineComponent({
     const customers = ref<RecordData[]>([]);
     const customerOptions = ref<RecordData[]>([]);
     const services = ref<RecordData[]>([]);
+    const serviceOptions = ref<RecordData[]>([]);
     const proposals = ref<RecordData[]>([]);
     const plans = ref<RecordData[]>([]);
     const users = ref<RecordData[]>([]);
@@ -194,7 +195,7 @@ export default defineComponent({
       discount: 0,
       notes: '',
       commercial_terms: '',
-      items: [{ description: '', quantity: 1, unit_price: 0 }],
+      items: [{ service_id: '', description: '', quantity: 1, unit_price: 0 }],
     });
     const planForm = reactive<RecordData>({
       id: null,
@@ -287,26 +288,23 @@ export default defineComponent({
     const load = async () => {
       loading.value = true;
       try {
-        const [dashboardResponse, customersResponse, servicesResponse, proposalsResponse, allCustomerOptions] = await Promise.all([
+        const [dashboardResponse, customersResponse, servicesResponse, proposalsResponse, allCustomerOptions, allServiceOptions] = await Promise.all([
           axios.get('/dashboard', { headers: jsonHeaders, params: dashboardFilters }),
           loadPage('/clientes', customerFilters, pagination.customers.current_page),
           loadPage('/servicos', serviceFilters, pagination.services.current_page),
           loadPage('/propostas', proposalFilters, pagination.proposals.current_page),
           loadPaginated('/clientes'),
+          loadPaginated('/servicos?active=1&per_page=50'),
         ]);
         stats.value = dashboardResponse.data;
         customers.value = customersResponse.items;
         services.value = servicesResponse.items;
         proposals.value = proposalsResponse.items;
         customerOptions.value = allCustomerOptions;
+        serviceOptions.value = allServiceOptions;
         Object.assign(pagination.customers, customersResponse.pagination);
         Object.assign(pagination.services, servicesResponse.pagination);
         Object.assign(pagination.proposals, proposalsResponse.pagination);
-
-        if (requestedProposalId && ! openedRequestedProposal) {
-          openedRequestedProposal = true;
-          await editProposal({ id: requestedProposalId });
-        }
 
         if (requestedProposalId && ! openedRequestedProposal) {
           openedRequestedProposal = true;
@@ -347,7 +345,7 @@ export default defineComponent({
     };
 
     const resetProposal = () => {
-      Object.assign(proposalForm, { id: null, customer_id: '', title: '', description: '', valid_until: '', discount: 0, notes: '', commercial_terms: '', items: [{ description: '', quantity: 1, unit_price: 0 }] });
+      Object.assign(proposalForm, { id: null, customer_id: '', title: '', description: '', valid_until: '', discount: 0, notes: '', commercial_terms: '', items: [{ service_id: '', description: '', quantity: 1, unit_price: 0 }] });
     };
 
     const editProposal = async (proposal: RecordData) => {
@@ -355,9 +353,18 @@ export default defineComponent({
       Object.assign(proposalForm, response.data, {
         customer_id: response.data.customer_id,
         valid_until: response.data.valid_until?.slice(0, 10) ?? '',
-        items: response.data.items.map((item: RecordData) => ({ description: item.description, quantity: item.quantity, unit_price: item.unit_price })),
+        items: response.data.items.map((item: RecordData) => ({ service_id: '', description: item.description, quantity: item.quantity, unit_price: item.unit_price })),
       });
       active.value = 'proposals';
+    };
+
+    const applyServiceToItem = (item: RecordData) => {
+      const service = serviceOptions.value.find((service) => service.id == item.service_id);
+      if (! service) return;
+
+      item.description = service.name;
+      item.unit_price = Number(service.unit_price ?? 0);
+      item.quantity = Number(item.quantity || 1);
     };
 
     const saveCustomer = async () => {
@@ -514,10 +521,10 @@ export default defineComponent({
     onMounted(load);
 
     return {
-      active, currentProposalCustomer, customerFilters, customerForm, customerOptions, customerSelectQuery, customers, dashboardFilters, destroy, editCustomer, editPlan, editProposal, editService, error, field, filteredCustomerOptions, formatDate, formatDateTime, formatStatLabel, formatStatValue, goToPage, isAdmin, isFinalProposal, loadCustomersPage, loadDashboard, loadProposalsPage, loadServicesPage, loading, logoPreviewUrl, logout, message, money,
+      active, applyServiceToItem, currentProposalCustomer, customerFilters, customerForm, customerOptions, customerSelectQuery, customers, dashboardFilters, destroy, editCustomer, editPlan, editProposal, editService, error, field, filteredCustomerOptions, formatDate, formatDateTime, formatStatLabel, formatStatValue, goToPage, isAdmin, isFinalProposal, loadCustomersPage, loadDashboard, loadProposalsPage, loadServicesPage, loading, logoPreviewUrl, logout, message, money,
       pagination, paginationSummary, planForm, plans, proposalFilters, proposalForm, proposalStatusClass, proposalStatuses, proposalSubtotal, proposalTotal, proposals, resetProposal, saveCustomer,
       profileBrandName, savePlan, savedBrandName, saveProfile, saveProposal, saveService, saveSettings, saveUser, selectLogo, sendProposal, serviceForm, services,
-      serviceFilters, settingInputType, settingLabel, settings, stats, statusLabel, user, userForm, users, profileForm, resetCustomer, resetService,
+      serviceFilters, serviceOptions, settingInputType, settingLabel, settings, stats, statusLabel, user, userForm, users, profileForm, resetCustomer, resetService,
     };
   },
 });
@@ -658,8 +665,12 @@ export default defineComponent({
               <textarea v-model="proposalForm.description" class="mt-3 w-full rounded-xl border p-3" placeholder="Descrição"></textarea>
               <div class="mt-3 grid gap-3 md:grid-cols-2"><input v-model="proposalForm.valid_until" type="date" class="rounded-xl border p-3"><input v-model.number="proposalForm.discount" type="number" step="0.01" class="rounded-xl border p-3" placeholder="Desconto"></div>
               <div class="mt-5 rounded-2xl border p-4">
-                <div class="flex items-center justify-between"><h3 class="font-semibold">Itens</h3><button type="button" class="text-blue-600" @click="proposalForm.items.push({ description: '', quantity: 1, unit_price: 0 })">+ Item</button></div>
-                <div v-for="(item, index) in proposalForm.items" :key="index" class="mt-3 grid gap-3 md:grid-cols-[1fr_100px_130px_70px]">
+                <div class="flex items-center justify-between"><h3 class="font-semibold">Itens</h3><button type="button" class="text-blue-600" @click="proposalForm.items.push({ service_id: '', description: '', quantity: 1, unit_price: 0 })">+ Item</button></div>
+                <div v-for="(item, index) in proposalForm.items" :key="index" class="mt-3 grid gap-3 md:grid-cols-[150px_1fr_90px_120px_70px]">
+                  <select v-model="item.service_id" class="rounded-xl border p-3" @change="applyServiceToItem(item)">
+                    <option value="">Serviço</option>
+                    <option v-for="service in serviceOptions" :key="service.id" :value="service.id">{{ service.name }}</option>
+                  </select>
                   <input v-model="item.description" class="rounded-xl border p-3" placeholder="Descrição" required>
                   <input v-model.number="item.quantity" type="number" step="0.01" class="rounded-xl border p-3" placeholder="Qtd." required>
                   <input v-model.number="item.unit_price" type="number" step="0.01" class="rounded-xl border p-3" placeholder="Unitário" required>
