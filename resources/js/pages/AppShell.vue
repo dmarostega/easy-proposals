@@ -308,6 +308,11 @@ export default defineComponent({
           await editProposal({ id: requestedProposalId });
         }
 
+        if (requestedProposalId && ! openedRequestedProposal) {
+          openedRequestedProposal = true;
+          await editProposal({ id: requestedProposalId });
+        }
+
         if (isAdmin) {
           const [allPlans, allUsers, settingsResponse, reportsResponse] = await Promise.all([
             loadPaginated('/admin/planos'),
