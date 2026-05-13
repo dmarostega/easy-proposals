@@ -5,7 +5,8 @@ namespace App\Http\Controllers\App;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreProposalRequest;
 use App\Models\Proposal;
-use App\Services\ProposalNotificationService;
+use App\Services\ProposalDeliveryService;
+use App\Services\ProposalPdfService;
 use App\Services\ProposalService;
 use Illuminate\Http\Request;
 
@@ -18,7 +19,7 @@ class ProposalController extends Controller
         }
 
         return response()->json(
-            $request->user()->proposals()->with('customer', 'publicToken')->latest()->paginate()
+            $request->user()->proposals()->with('customer', 'publicToken')->withCount('events')->latest()->paginate()
         );
     }
 
@@ -31,7 +32,7 @@ class ProposalController extends Controller
     {
         $this->authorize('view', $proposal);
 
-        return response()->json($proposal->load('customer', 'items', 'publicToken'));
+        return response()->json($proposal->load('customer', 'items', 'publicToken', 'events'));
     }
 
     public function update(StoreProposalRequest $request, Proposal $proposal, ProposalService $service)
@@ -41,14 +42,11 @@ class ProposalController extends Controller
         return response()->json($service->update($proposal, $request->validated()));
     }
 
-    public function send(Proposal $proposal, ProposalService $service, ProposalNotificationService $notifications)
+    public function send(Proposal $proposal, ProposalDeliveryService $deliveryService)
     {
         $this->authorize('update', $proposal);
 
-        $proposal = $service->markAsSent($proposal);
-        $notifications->sendToCustomer($proposal);
-
-        return response()->json($proposal);
+        return response()->json($deliveryService->sendToCustomer($proposal));
     }
 
     public function destroy(Proposal $proposal)
@@ -59,11 +57,11 @@ class ProposalController extends Controller
         return response()->noContent();
     }
 
-    public function pdf(Proposal $proposal)
+    public function pdf(Proposal $proposal, ProposalPdfService $pdfService)
     {
         $this->authorize('view', $proposal);
         abort_unless($proposal->user->plan?->allows_pdf, 403, 'Seu plano não permite PDF.');
 
-        return response()->view('pdf.proposal', ['proposal' => $proposal->load('customer', 'items')]);
+        return $pdfService->download($proposal->load('customer', 'items', 'user'));
     }
 }

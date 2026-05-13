@@ -41,6 +41,12 @@ const formatDate = (value: string | null | undefined) => {
   return new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC' }).format(new Date(value));
 };
 
+const formatDateTime = (value: string | null | undefined) => {
+  if (! value) return '';
+
+  return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value));
+};
+
 const settingLabel = (key: string | number) => String(key).replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 
 const settingInputType = (key: string | number) => String(key).includes('color') ? 'color' : 'text';
@@ -73,6 +79,8 @@ export default defineComponent({
     const page = mount?.dataset.page ?? 'app';
     const user = ref<RecordData>(JSON.parse(mount?.dataset.user ?? '{}'));
     const isAdmin = mount?.dataset.admin === 'true';
+    const requestedProposalId = new URLSearchParams(window.location.search).get('proposal');
+    let openedRequestedProposal = false;
     const initialSection = () => {
       if (page === 'admin' || window.location.pathname.startsWith('/admin')) return 'admin';
       if (window.location.pathname.startsWith('/clientes')) return 'customers';
@@ -160,6 +168,11 @@ export default defineComponent({
         customers.value = allCustomers;
         services.value = allServices;
         proposals.value = allProposals;
+
+        if (requestedProposalId && ! openedRequestedProposal) {
+          openedRequestedProposal = true;
+          await editProposal({ id: requestedProposalId });
+        }
 
         if (isAdmin) {
           const [allPlans, allUsers, settingsResponse, reportsResponse] = await Promise.all([
@@ -362,7 +375,7 @@ export default defineComponent({
     onMounted(load);
 
     return {
-      active, currentProposalCustomer, customerForm, customers, destroy, editCustomer, editPlan, editProposal, editService, error, field, formatDate, formatStatLabel, formatStatValue, isAdmin, isFinalProposal, loading, logoPreviewUrl, logout, message, money,
+      active, currentProposalCustomer, customerForm, customers, destroy, editCustomer, editPlan, editProposal, editService, error, field, formatDate, formatDateTime, formatStatLabel, formatStatValue, isAdmin, isFinalProposal, loading, logoPreviewUrl, logout, message, money,
       planForm, plans, proposalForm, proposalSubtotal, proposalTotal, proposals, resetProposal, saveCustomer,
       profileBrandName, savePlan, savedBrandName, saveProfile, saveProposal, saveService, saveSettings, saveUser, selectLogo, sendProposal, serviceForm, services,
       settingInputType, settingLabel, settings, stats, user, userForm, users, profileForm, resetCustomer, resetService,
@@ -501,11 +514,23 @@ export default defineComponent({
                   <button type="button" class="mt-4 w-full rounded-xl px-5 py-3 font-semibold text-white" :style="{ backgroundColor: user.primary_color || '#2563eb' }">Aprovar proposta</button>
                 </div>
               </article>
+              <article v-if="proposalForm.id && proposalForm.events?.length" class="rounded-3xl bg-white p-6 shadow-sm">
+                <h2 class="text-xl font-bold">Hist&oacute;rico da proposta</h2>
+                <div class="mt-4 grid gap-3">
+                  <div v-for="event in proposalForm.events" :key="event.id" class="rounded-2xl border border-slate-200 p-4">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                      <strong class="text-slate-900">{{ event.message }}</strong>
+                      <span class="text-xs text-slate-500">{{ formatDateTime(event.occurred_at) }}</span>
+                    </div>
+                    <p class="mt-1 text-xs uppercase tracking-wide text-slate-400">{{ event.type }}</p>
+                  </div>
+                </div>
+              </article>
               <article class="rounded-3xl bg-white p-6 shadow-sm">
                 <h2 class="text-xl font-bold">Propostas</h2>
                 <div v-for="proposal in proposals" :key="proposal.id" class="mt-4 rounded-2xl border p-4">
-                  <div class="flex justify-between gap-3"><div><strong>{{ proposal.title }}</strong><p class="text-sm text-slate-500">{{ proposal.customer?.name }} · {{ proposal.status }} · {{ money(proposal.total) }}</p></div><a v-if="!isFinalProposal(proposal)" class="text-blue-600" :href="'/propostas/' + proposal.id" @click.prevent="editProposal(proposal)">Editar</a><span v-else class="text-sm text-slate-400">Bloqueada</span></div>
-                  <div class="mt-3 flex flex-wrap gap-3 text-sm"><a v-if="proposal.public_token" class="text-blue-600" :href="'/p/' + proposal.public_token.token" target="_blank">Link público</a><a v-if="!isFinalProposal(proposal)" class="text-emerald-600" :href="'/propostas/' + proposal.id + '/enviar'" @click.prevent="sendProposal(proposal)">Enviar e-mail</a><a v-if="!isFinalProposal(proposal)" class="text-rose-600" :href="'/propostas/' + proposal.id" @click.prevent="destroy('/propostas/' + proposal.id)">Excluir</a></div>
+                  <div class="flex justify-between gap-3"><div><strong>{{ proposal.title }}</strong><p class="text-sm text-slate-500">{{ proposal.customer?.name }} · {{ proposal.status }} · {{ money(proposal.total) }} · {{ proposal.events_count ?? 0 }} evento(s)</p></div><a v-if="!isFinalProposal(proposal)" class="text-blue-600" :href="'/propostas/' + proposal.id" @click.prevent="editProposal(proposal)">Editar</a><span v-else class="text-sm text-slate-400">Bloqueada</span></div>
+                  <div class="mt-3 flex flex-wrap gap-3 text-sm"><a v-if="proposal.public_token" class="text-blue-600" :href="'/p/' + proposal.public_token.token" target="_blank">Link público</a><a v-if="user.plan?.allows_pdf" class="text-slate-700" :href="'/propostas/' + proposal.id + '/pdf'" target="_blank">PDF</a><a v-if="!isFinalProposal(proposal)" class="text-emerald-600" :href="'/propostas/' + proposal.id + '/enviar'" @click.prevent="sendProposal(proposal)">Enviar e-mail</a><a v-if="!isFinalProposal(proposal)" class="text-rose-600" :href="'/propostas/' + proposal.id" @click.prevent="destroy('/propostas/' + proposal.id)">Excluir</a></div>
                 </div>
               </article>
             </div>

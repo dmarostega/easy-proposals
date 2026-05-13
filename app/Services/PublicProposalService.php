@@ -6,10 +6,14 @@ use App\Enums\ProposalStatus;
 use App\Models\Proposal;
 use App\Models\ProposalPublicToken;
 use Illuminate\Support\Facades\DB;
+use Throwable;
 
 class PublicProposalService
 {
-    public function __construct(private readonly ProposalDeliveryService $deliveryService) {}
+    public function __construct(
+        private readonly ProposalDeliveryService $deliveryService,
+        private readonly ProposalEventService $events,
+    ) {}
 
     public function findByToken(string $token): Proposal
     {
@@ -23,6 +27,13 @@ class PublicProposalService
 
         if ($proposal->status === ProposalStatus::Sent) {
             $proposal->update(['status' => ProposalStatus::Viewed, 'viewed_at' => $proposal->viewed_at ?? now()]);
+            $this->events->record($proposal, 'viewed', 'Cliente visualizou a proposta.');
+
+            try {
+                $this->deliveryService->notifyView($proposal->fresh(['items', 'customer', 'user', 'publicToken']));
+            } catch (Throwable $exception) {
+                report($exception);
+            }
         }
 
         return $proposal->fresh(['items', 'customer', 'user.plan', 'publicToken']);
@@ -34,6 +45,7 @@ class PublicProposalService
             if ($proposal->status !== ProposalStatus::Approved) {
                 $this->deliveryService->notifyApproval($proposal);
                 $proposal->update(['status' => ProposalStatus::Approved, 'approved_at' => now(), 'rejected_at' => null]);
+                $this->events->record($proposal, 'approved', 'Cliente aprovou a proposta.');
             }
 
             return $proposal->fresh(['items', 'customer']);
@@ -43,12 +55,15 @@ class PublicProposalService
     public function reject(Proposal $proposal): Proposal
     {
         return DB::transaction(function () use ($proposal): Proposal {
-            $this->deliveryService->notifyRejection($proposal);
-            $proposal->update([
-                'status' => ProposalStatus::Rejected,
-                'rejected_at' => now(),
-                'approved_at' => null,
-            ]);
+            if ($proposal->status !== ProposalStatus::Rejected) {
+                $this->deliveryService->notifyRejection($proposal);
+                $proposal->update([
+                    'status' => ProposalStatus::Rejected,
+                    'rejected_at' => now(),
+                    'approved_at' => null,
+                ]);
+                $this->events->record($proposal, 'rejected', 'Cliente recusou a proposta.');
+            }
 
             return $proposal->fresh(['items', 'customer', 'user']);
         });
