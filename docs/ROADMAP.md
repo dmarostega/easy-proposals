@@ -31,11 +31,12 @@
 - [ ] Métricas SaaS avançadas.
 
 ## Outras Melhorias
-- [ ] Adicionar Aprovada / Recusada em um badge, ou melhorar layout de itens da lista de proposta cadastradas
-- [ ] Aparentemente "Serviços" não está sendo usado, verificar
-- [ ] Filtros no Dashboard
-- [ ] Filtros e paginação em listagens (Propostas, Clientes)
-- [ ] Input de pesquisa em selects (Clientes em Proposta)
+- [x] Adicionar Aprovada / Recusada em um badge, ou melhorar layout de itens da lista de proposta cadastradas
+- [x] Aparentemente "Serviços" não está sendo usado, verificar. Avisar o que fazer, antes de fazer.
+  - Verificado: Serviços existe como CRUD/catálogo, mas ainda não alimenta os itens da proposta. Recomendação: integrar no editor para preencher descrição e preço dos itens, sem obrigar vínculo rígido no histórico da proposta.
+- [x] Filtros no Dashboard
+- [x] Filtros e paginação em listagens (Propostas, Clientes, Serviços)
+- [x] Input de pesquisa em selects (Clientes em Proposta)
 - [ ] Validar se usuário Admin do sistema deve ter menus de propostas, clientes, serviços e perfil da marca
 - [ ] Gerar conteudos, pagina Inicial, termos e privacidade,
 - [ ] melhorar recursos e preços (está sem valor)

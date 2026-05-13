@@ -16,7 +16,20 @@ class CustomerController extends Controller
             return app(AppPageController::class)($request);
         }
 
-        return response()->json($request->user()->customers()->latest()->paginate());
+        $query = $request->user()->customers();
+
+        if ($search = $request->string('q')->trim()->toString()) {
+            $query->where(function ($query) use ($search): void {
+                $query->where('name', 'like', "%{$search}%")
+                    ->orWhere('email', 'like', "%{$search}%")
+                    ->orWhere('phone', 'like', "%{$search}%")
+                    ->orWhere('document', 'like', "%{$search}%");
+            });
+        }
+
+        $perPage = min(max($request->integer('per_page', 10), 1), 50);
+
+        return response()->json($query->latest()->paginate($perPage)->withQueryString());
     }
 
     public function store(CustomerRequest $request, PlanLimitService $limits)

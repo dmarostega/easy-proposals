@@ -18,9 +18,26 @@ class ProposalController extends Controller
             return app(AppPageController::class)($request);
         }
 
-        return response()->json(
-            $request->user()->proposals()->with('customer', 'publicToken')->withCount('events')->latest()->paginate()
-        );
+        $query = $request->user()->proposals()->with('customer', 'publicToken')->withCount('events');
+
+        if ($search = $request->string('q')->trim()->toString()) {
+            $query->where(function ($query) use ($search): void {
+                $query->where('title', 'like', "%{$search}%")
+                    ->orWhereHas('customer', fn ($query) => $query->where('name', 'like', "%{$search}%"));
+            });
+        }
+
+        if ($status = $request->string('status')->trim()->toString()) {
+            $query->where('status', $status);
+        }
+
+        if ($customerId = $request->integer('customer_id')) {
+            $query->where('customer_id', $customerId);
+        }
+
+        $perPage = min(max($request->integer('per_page', 10), 1), 50);
+
+        return response()->json($query->latest()->paginate($perPage)->withQueryString());
     }
 
     public function store(StoreProposalRequest $request, ProposalService $service)
