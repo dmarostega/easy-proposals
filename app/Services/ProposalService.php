@@ -9,6 +9,7 @@ use App\Models\User;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class ProposalService
 {
@@ -36,6 +37,8 @@ class ProposalService
 
     public function update(Proposal $proposal, array $data): Proposal
     {
+        $this->assertProposalIsEditable($proposal);
+
         return DB::transaction(function () use ($proposal, $data): Proposal {
             $totals = $this->calculator->totals($data['items'], (float) ($data['discount'] ?? 0));
 
@@ -53,6 +56,8 @@ class ProposalService
 
     public function markAsSent(Proposal $proposal): Proposal
     {
+        $this->assertProposalIsEditable($proposal);
+
         $this->ensurePublicToken($proposal);
 
         $proposal->update([
@@ -76,6 +81,15 @@ class ProposalService
                 'quantity' => $item['quantity'],
                 'unit_price' => $item['unit_price'],
                 'total' => round((float) $item['quantity'] * (float) $item['unit_price'], 2),
+            ]);
+        }
+    }
+
+    private function assertProposalIsEditable(Proposal $proposal): void
+    {
+        if (in_array($proposal->status, [ProposalStatus::Approved, ProposalStatus::Rejected, ProposalStatus::Expired], true)) {
+            throw ValidationException::withMessages([
+                'proposal' => 'Propostas aprovadas, recusadas ou expiradas não podem ser alteradas.',
             ]);
         }
     }

@@ -281,4 +281,34 @@ class ProposalSaasTest extends TestCase
             ->assertDontSee('Aprovar')
             ->assertDontSee('Recusar');
     }
+
+    public function test_finalized_proposal_cannot_be_changed_by_owner(): void
+    {
+        Mail::fake();
+
+        $user = User::factory()->create(['plan_id' => Plan::factory()->unlimited()->create()->id]);
+        $customer = Customer::factory()->create(['user_id' => $user->id]);
+        $proposal = app(ProposalService::class)->create($user, [
+            'customer_id' => $customer->id,
+            'title' => 'Landing page',
+            'items' => [['description' => 'Design', 'quantity' => 1, 'unit_price' => 500]],
+        ]);
+
+        $this->post(route('public.proposals.approve', $proposal->publicToken->token))->assertRedirect();
+
+        $this->actingAs($user)
+            ->putJson(route('propostas.update', $proposal), [
+                'customer_id' => $customer->id,
+                'title' => 'Landing page alterada',
+                'items' => [['description' => 'Design', 'quantity' => 1, 'unit_price' => 700]],
+            ])
+            ->assertForbidden();
+
+        $this->actingAs($user)->postJson(route('propostas.send', $proposal))->assertForbidden();
+        $this->actingAs($user)->deleteJson(route('propostas.destroy', $proposal))->assertForbidden();
+
+        $proposal->refresh();
+        $this->assertSame(ProposalStatus::Approved, $proposal->status);
+        $this->assertSame('Landing page', $proposal->title);
+    }
 }

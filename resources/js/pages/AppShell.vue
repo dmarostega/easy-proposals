@@ -46,6 +46,7 @@ const settingLabel = (key: string | number) => String(key).replace(/_/g, ' ').re
 const settingInputType = (key: string | number) => String(key).includes('color') ? 'color' : 'text';
 
 const jsonHeaders = { Accept: 'application/json' };
+const finalProposalStatuses = ['aprovada', 'recusada', 'expirada'];
 
 const itemsFromResponse = (payload: RecordData | RecordData[]) => Array.isArray(payload) ? payload : (payload.data ?? []);
 
@@ -63,6 +64,8 @@ const loadPaginated = async (url: string) => {
 
   return items;
 };
+
+const isFinalProposal = (proposal: RecordData) => finalProposalStatuses.includes(proposal.status);
 
 export default defineComponent({
   setup() {
@@ -359,7 +362,7 @@ export default defineComponent({
     onMounted(load);
 
     return {
-      active, currentProposalCustomer, customerForm, customers, destroy, editCustomer, editPlan, editProposal, editService, error, field, formatDate, formatStatLabel, formatStatValue, isAdmin, loading, logoPreviewUrl, logout, message, money,
+      active, currentProposalCustomer, customerForm, customers, destroy, editCustomer, editPlan, editProposal, editService, error, field, formatDate, formatStatLabel, formatStatValue, isAdmin, isFinalProposal, loading, logoPreviewUrl, logout, message, money,
       planForm, plans, proposalForm, proposalSubtotal, proposalTotal, proposals, resetProposal, saveCustomer,
       profileBrandName, savePlan, savedBrandName, saveProfile, saveProposal, saveService, saveSettings, saveUser, selectLogo, sendProposal, serviceForm, services,
       settingInputType, settingLabel, settings, stats, user, userForm, users, profileForm, resetCustomer, resetService,
@@ -501,8 +504,8 @@ export default defineComponent({
               <article class="rounded-3xl bg-white p-6 shadow-sm">
                 <h2 class="text-xl font-bold">Propostas</h2>
                 <div v-for="proposal in proposals" :key="proposal.id" class="mt-4 rounded-2xl border p-4">
-                  <div class="flex justify-between gap-3"><div><strong>{{ proposal.title }}</strong><p class="text-sm text-slate-500">{{ proposal.customer?.name }} · {{ proposal.status }} · {{ money(proposal.total) }}</p></div><a class="text-blue-600" :href="'/propostas/' + proposal.id" @click.prevent="editProposal(proposal)">Editar</a></div>
-                  <div class="mt-3 flex flex-wrap gap-3 text-sm"><a v-if="proposal.public_token" class="text-blue-600" :href="'/p/' + proposal.public_token.token" target="_blank">Link público</a><a class="text-emerald-600" :href="'/propostas/' + proposal.id + '/enviar'" @click.prevent="sendProposal(proposal)">Enviar e-mail</a><a class="text-rose-600" :href="'/propostas/' + proposal.id" @click.prevent="destroy('/propostas/' + proposal.id)">Excluir</a></div>
+                  <div class="flex justify-between gap-3"><div><strong>{{ proposal.title }}</strong><p class="text-sm text-slate-500">{{ proposal.customer?.name }} · {{ proposal.status }} · {{ money(proposal.total) }}</p></div><a v-if="!isFinalProposal(proposal)" class="text-blue-600" :href="'/propostas/' + proposal.id" @click.prevent="editProposal(proposal)">Editar</a><span v-else class="text-sm text-slate-400">Bloqueada</span></div>
+                  <div class="mt-3 flex flex-wrap gap-3 text-sm"><a v-if="proposal.public_token" class="text-blue-600" :href="'/p/' + proposal.public_token.token" target="_blank">Link público</a><a v-if="!isFinalProposal(proposal)" class="text-emerald-600" :href="'/propostas/' + proposal.id + '/enviar'" @click.prevent="sendProposal(proposal)">Enviar e-mail</a><a v-if="!isFinalProposal(proposal)" class="text-rose-600" :href="'/propostas/' + proposal.id" @click.prevent="destroy('/propostas/' + proposal.id)">Excluir</a></div>
                 </div>
               </article>
             </div>
