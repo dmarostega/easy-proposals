@@ -25,6 +25,14 @@ class ProposalDeliveryService
         }
 
         $this->proposalService->ensurePublicToken($proposal);
+        
+        Mail::to($proposal->customer->email)->send(new ProposalSentMail($proposal->fresh([
+            'customer',
+            'items',
+            'publicToken',
+            'user',
+        ])));
+
 
         if (! in_array($proposal->status, [ProposalStatus::Approved, ProposalStatus::Rejected], true)) {
             $proposal->forceFill([
@@ -32,13 +40,6 @@ class ProposalDeliveryService
                 'sent_at' => $proposal->sent_at ?? now(),
             ])->save();
         }
-
-        Mail::to($proposal->customer->email)->send(new ProposalSentMail($proposal->fresh([
-            'customer',
-            'items',
-            'publicToken',
-            'user',
-        ])));
 
         return $proposal->fresh(['customer', 'items', 'publicToken']);
     }
