@@ -1,9 +1,9 @@
 @extends('layouts.public')
 @section('content')
-<section class="rounded-3xl bg-white p-10 shadow-sm">
+<section class="rounded-3xl border border-[var(--color-primary)]/10 bg-white p-10 shadow-sm">
     <p class="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--color-primary)]">SaaS para propostas comerciais</p>
-    <h1 class="max-w-3xl text-4xl font-bold">{{ $title }}</h1>
-    <p class="mt-4 max-w-2xl text-lg text-slate-600">{{ $description }}</p>
+    <h1 class="max-w-3xl text-4xl font-bold text-[var(--color-secondary)]">{{ $title }}</h1>
+    <p class="mt-4 max-w-2xl text-lg text-[var(--color-secondary)]/80">{{ $description }}</p>
     @if($page === 'home')
         <div class="mt-8 grid gap-4 md:grid-cols-3"><div>Crie propostas com itens, descontos e validade.</div><div>Envie link público seguro para aprovação.</div><div>Acompanhe status e valor aprovado.</div></div>
     @elseif($page === 'precos')

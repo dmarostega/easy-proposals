@@ -9,6 +9,37 @@ const money = (value: number | string | null | undefined) =>
 
 const field = (data: RecordData, name: string, fallback: any = '') => data[name] ?? fallback;
 
+const formatStatLabel = (key: string | number) => String(key).replace(/_/g, ' ').toUpperCase();
+
+const formatStatValue = (value: any, key?: string | number) => {
+  if (value === null || value === undefined || value === '') {
+    return '—';
+  }
+
+  if (Array.isArray(value)) {
+    if (key === 'users_by_plan') {
+      return value.length
+        ? value.map((plan: RecordData) => `${plan.name}: ${plan.users_count ?? 0}`).join(' · ')
+        : 'Sem usuários por plano';
+    }
+
+    return value.length ? `${value.length} registro(s)` : 'Nenhum registro';
+  }
+
+  if (typeof value === 'object') {
+    return Object.entries(value)
+      .map(([entryKey, entryValue]) => `${formatStatLabel(entryKey)}: ${entryValue ?? '—'}`)
+      .join(' · ');
+  }
+
+  return value;
+};
+
+const settingLabel = (key: string | number) => String(key).replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+
+const settingInputType = (key: string | number) => String(key).includes('color') ? 'color' : 'text';
+
+
 export default defineComponent({
   setup() {
     const mount = document.getElementById('app');
@@ -205,13 +236,32 @@ export default defineComponent({
       } catch (exception) { setError(exception); }
     };
 
+    const logout = () => {
+      const form = document.createElement('form');
+      const csrfToken = document.querySelector<HTMLMetaElement>('meta[name=\"csrf-token\"]')?.content ?? '';
+
+      form.method = 'POST';
+      form.action = '/logout';
+
+      if (csrfToken) {
+        const token = document.createElement('input');
+        token.type = 'hidden';
+        token.name = '_token';
+        token.value = csrfToken;
+        form.appendChild(token);
+      }
+
+      document.body.appendChild(form);
+      form.submit();
+    };
+
     onMounted(load);
 
     return {
-      active, customerForm, customers, destroy, editPlan, editProposal, error, field, isAdmin, loading, message, money,
+      active, customerForm, customers, destroy, editPlan, editProposal, error, field, formatStatLabel, formatStatValue, isAdmin, loading, logout, message, money,
       planForm, plans, proposalForm, proposalSubtotal, proposalTotal, proposals, resetProposal, saveCustomer,
       savePlan, saveProposal, saveService, saveSettings, saveUser, sendProposal, serviceForm, services,
-      settings, stats, user, userForm, users,
+      settingInputType, settingLabel, settings, stats, user, userForm, users,
     };
   },
 });
@@ -229,6 +279,7 @@ export default defineComponent({
           <button class="rounded-xl px-4 py-3 text-left hover:bg-white/10" @click="active = 'services'">Serviços</button>
           <button v-if="isAdmin" class="rounded-xl px-4 py-3 text-left hover:bg-white/10" @click="active = 'admin'">Admin</button>
           <a class="rounded-xl px-4 py-3 hover:bg-white/10" href="/perfil">Perfil da marca</a>
+          <button class="rounded-xl px-4 py-3 text-left hover:bg-white/10" type="button" @click="logout">Sair</button>
         </nav>
       </aside>
 
@@ -243,6 +294,7 @@ export default defineComponent({
               <button class="rounded bg-slate-900 px-3 py-2 text-white" @click="active='dashboard'">Dashboard</button>
               <button class="rounded bg-slate-900 px-3 py-2 text-white" @click="active='proposals'">Propostas</button>
               <button v-if="isAdmin" class="rounded bg-slate-900 px-3 py-2 text-white" @click="active='admin'">Admin</button>
+              <button class="rounded bg-rose-600 px-3 py-2 text-white" type="button" @click="logout">Sair</button>
             </div>
           </div>
         </header>
@@ -254,8 +306,8 @@ export default defineComponent({
 
           <section v-if="active === 'dashboard'" class="grid gap-4 md:grid-cols-3 xl:grid-cols-5">
             <article v-for="(value, key) in stats" :key="key" class="rounded-3xl bg-white p-6 shadow-sm">
-              <p class="text-sm uppercase tracking-wide text-slate-500">{{ key }}</p>
-              <strong class="mt-3 block text-2xl">{{ value ?? 'Ilimitado' }}</strong>
+              <p class="text-sm uppercase tracking-wide text-slate-500">{{ formatStatLabel(key) }}</p>
+              <strong class="mt-3 block break-words text-2xl">{{ formatStatValue(value, key) }}</strong>
             </article>
           </section>
 
@@ -336,12 +388,22 @@ export default defineComponent({
           </section>
 
           <section v-if="active === 'admin' && isAdmin" class="grid gap-6">
-            <div class="grid gap-4 md:grid-cols-4"><article v-for="(value, key) in stats" :key="key" class="rounded-3xl bg-slate-950 p-5 text-white"><p class="text-xs uppercase text-slate-400">{{ key }}</p><strong class="mt-2 block text-2xl">{{ value ?? '—' }}</strong></article></div>
+            <div class="grid gap-4 md:grid-cols-4"><article v-for="(value, key) in stats" :key="key" class="rounded-3xl bg-slate-950 p-5 text-white"><p class="text-xs uppercase text-slate-400">{{ formatStatLabel(key) }}</p><strong class="mt-2 block break-words text-2xl">{{ formatStatValue(value, key) }}</strong></article></div>
             <div class="grid gap-6 xl:grid-cols-2">
               <form class="rounded-3xl bg-white p-6 shadow-sm" @submit.prevent="savePlan"><h2 class="text-xl font-bold">Planos</h2><input v-model="planForm.name" class="mt-4 w-full rounded-xl border p-3" placeholder="Nome" required><input v-model="planForm.slug" class="mt-3 w-full rounded-xl border p-3" placeholder="Slug" required><input v-model.number="planForm.monthly_price_cents" type="number" class="mt-3 w-full rounded-xl border p-3" placeholder="Preço em centavos" required><div class="mt-3 grid gap-3 md:grid-cols-2"><input v-model="planForm.monthly_proposal_limit" type="number" class="rounded-xl border p-3" placeholder="Limite propostas"><input v-model="planForm.customer_limit" type="number" class="rounded-xl border p-3" placeholder="Limite clientes"></div><label class="mt-3 flex gap-2"><input v-model="planForm.allows_pdf" type="checkbox"> PDF</label><label class="mt-2 flex gap-2"><input v-model="planForm.allows_custom_logo" type="checkbox"> Logo customizada</label><label class="mt-2 flex gap-2"><input v-model="planForm.is_active" type="checkbox"> Ativo</label><button class="mt-4 rounded-xl bg-slate-950 px-5 py-3 font-semibold text-white">Salvar plano</button><div v-for="plan in plans" class="mt-3 flex justify-between rounded-xl border p-3"><span>{{ plan.name }} · {{ money(plan.monthly_price_cents / 100) }}</span><button type="button" class="text-blue-600" @click="editPlan(plan)">Editar</button></div></form>
               <form class="rounded-3xl bg-white p-6 shadow-sm" @submit.prevent="saveUser"><h2 class="text-xl font-bold">Usuários</h2><select v-model="userForm.id" class="mt-4 w-full rounded-xl border p-3" @change="Object.assign(userForm, users.find(u => u.id == userForm.id) ?? userForm)"><option value="">Selecione</option><option v-for="item in users" :value="item.id">{{ item.name }}</option></select><input v-model="userForm.name" class="mt-3 w-full rounded-xl border p-3" placeholder="Nome" required><input v-model="userForm.email" class="mt-3 w-full rounded-xl border p-3" placeholder="E-mail" required><select v-model="userForm.plan_id" class="mt-3 w-full rounded-xl border p-3"><option value="">Sem plano</option><option v-for="plan in plans" :value="plan.id">{{ plan.name }}</option></select><select v-model="userForm.role" class="mt-3 w-full rounded-xl border p-3"><option value="user">Usuário</option><option value="admin">Admin</option></select><label class="mt-3 flex gap-2"><input v-model="userForm.is_active" type="checkbox"> Ativo</label><button class="mt-4 rounded-xl bg-slate-950 px-5 py-3 font-semibold text-white" :disabled="!userForm.id">Atualizar usuário</button></form>
             </div>
-            <form class="rounded-3xl bg-white p-6 shadow-sm" @submit.prevent="saveSettings"><h2 class="text-xl font-bold">Configurações</h2><div class="mt-4 grid gap-3 md:grid-cols-2"><label v-for="(_, key) in settings" class="grid gap-1 text-sm"><span>{{ key }}</span><input v-model="settings[key]" class="rounded-xl border p-3"></label></div><button class="mt-4 rounded-xl bg-slate-950 px-5 py-3 font-semibold text-white">Salvar configurações</button></form>
+            <form class="rounded-3xl bg-white p-6 shadow-sm" @submit.prevent="saveSettings">
+              <h2 class="text-xl font-bold">Configurações</h2>
+              <p class="mt-1 text-sm text-slate-500">Ajuste nome, domínio, contatos, SEO e cores globais usadas quando não há marca de usuário.</p>
+              <div class="mt-4 grid gap-3 md:grid-cols-2">
+                <label v-for="(_, key) in settings" :key="key" class="grid gap-1 text-sm">
+                  <span>{{ settingLabel(key) }}</span>
+                  <input v-model="settings[key]" :type="settingInputType(key)" class="rounded-xl border p-3">
+                </label>
+              </div>
+              <button class="mt-4 rounded-xl bg-slate-950 px-5 py-3 font-semibold text-white">Salvar configurações</button>
+            </form>
           </section>
         </section>
       </main>
