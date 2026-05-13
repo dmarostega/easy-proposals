@@ -35,6 +35,12 @@ const formatStatValue = (value: any, key?: string | number) => {
   return value;
 };
 
+const formatDate = (value: string | null | undefined) => {
+  if (! value) return 'Sem validade definida';
+
+  return new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC' }).format(new Date(value));
+};
+
 const settingLabel = (key: string | number) => String(key).replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 
 const settingInputType = (key: string | number) => String(key).includes('color') ? 'color' : 'text';
@@ -122,6 +128,7 @@ export default defineComponent({
 
     const proposalSubtotal = computed(() => proposalForm.items.reduce((total: number, item: RecordData) => total + Number(item.quantity || 0) * Number(item.unit_price || 0), 0));
     const proposalTotal = computed(() => Math.max(0, proposalSubtotal.value - Number(proposalForm.discount || 0)));
+    const currentProposalCustomer = computed(() => customers.value.find((customer) => customer.id == proposalForm.customer_id));
 
     const setMessage = (text: string) => {
       message.value = text;
@@ -347,7 +354,7 @@ export default defineComponent({
     onMounted(load);
 
     return {
-      active, customerForm, customers, destroy, editCustomer, editPlan, editProposal, editService, error, field, formatStatLabel, formatStatValue, isAdmin, loading, logout, message, money,
+      active, currentProposalCustomer, customerForm, customers, destroy, editCustomer, editPlan, editProposal, editService, error, field, formatDate, formatStatLabel, formatStatValue, isAdmin, loading, logout, message, money,
       planForm, plans, proposalForm, proposalSubtotal, proposalTotal, proposals, resetProposal, saveCustomer,
       savePlan, saveProfile, saveProposal, saveService, saveSettings, saveUser, selectLogo, sendProposal, serviceForm, services,
       settingInputType, settingLabel, settings, stats, user, userForm, users, profileForm, resetCustomer, resetService,
@@ -455,23 +462,27 @@ export default defineComponent({
                 </div>
               </div>
               <textarea v-model="proposalForm.commercial_terms" class="mt-3 w-full rounded-xl border p-3" placeholder="Condições comerciais"></textarea>
+              <textarea v-model="proposalForm.notes" class="mt-3 w-full rounded-xl border p-3" placeholder="Observações internas ou detalhes adicionais"></textarea>
               <button class="mt-4 rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white">{{ proposalForm.id ? 'Atualizar proposta' : 'Criar proposta' }}</button>
             </form>
 
             <div class="grid gap-6">
               <article class="rounded-3xl bg-white p-6 shadow-sm">
                 <h2 class="text-xl font-bold">Pré-visualização</h2>
-                <p class="mt-4 text-sm text-slate-500">Cliente: {{ customers.find(c => c.id == proposalForm.customer_id)?.name ?? 'Não selecionado' }}</p>
+                <p class="mt-4 text-sm text-slate-500">Cliente: {{ currentProposalCustomer?.name ?? 'Não selecionado' }}</p>
+                <p class="mt-1 text-sm text-slate-500">Validade: {{ formatDate(proposalForm.valid_until) }}</p>
                 <h3 class="mt-2 text-2xl font-black">{{ proposalForm.title || 'Título da proposta' }}</h3>
                 <p class="mt-2 text-slate-600">{{ proposalForm.description || 'Descrição da proposta aparecerá aqui.' }}</p>
-                <div class="mt-5 overflow-hidden rounded-2xl border"><table class="w-full text-left text-sm"><thead class="bg-slate-100"><tr><th class="p-3">Item</th><th>Qtd.</th><th>Total</th></tr></thead><tbody><tr v-for="item in proposalForm.items" class="border-t"><td class="p-3">{{ item.description || 'Item' }}</td><td>{{ item.quantity }}</td><td>{{ money(Number(item.quantity || 0) * Number(item.unit_price || 0)) }}</td></tr></tbody></table></div>
+                <div class="mt-5 overflow-x-auto rounded-2xl border"><table class="w-full min-w-[520px] text-left text-sm"><thead class="bg-slate-100"><tr><th class="p-3">Item</th><th>Qtd.</th><th>Unitário</th><th>Total</th></tr></thead><tbody><tr v-for="item in proposalForm.items" class="border-t"><td class="p-3">{{ item.description || 'Item' }}</td><td>{{ item.quantity }}</td><td>{{ money(item.unit_price) }}</td><td>{{ money(Number(item.quantity || 0) * Number(item.unit_price || 0)) }}</td></tr></tbody></table></div>
                 <p class="mt-4 text-right text-sm">Subtotal: {{ money(proposalSubtotal) }}</p><p class="text-right text-sm">Desconto: {{ money(proposalForm.discount) }}</p><p class="text-right text-2xl font-black">Total: {{ money(proposalTotal) }}</p>
+                <div v-if="proposalForm.commercial_terms" class="mt-5 rounded-2xl bg-slate-50 p-4"><h4 class="font-semibold">Condições comerciais</h4><p class="mt-2 whitespace-pre-line text-sm text-slate-600">{{ proposalForm.commercial_terms }}</p></div>
+                <div v-if="proposalForm.notes" class="mt-3 rounded-2xl bg-slate-50 p-4"><h4 class="font-semibold">Observações</h4><p class="mt-2 whitespace-pre-line text-sm text-slate-600">{{ proposalForm.notes }}</p></div>
               </article>
               <article class="rounded-3xl bg-white p-6 shadow-sm">
                 <h2 class="text-xl font-bold">Propostas</h2>
                 <div v-for="proposal in proposals" :key="proposal.id" class="mt-4 rounded-2xl border p-4">
-                  <div class="flex justify-between gap-3"><div><strong>{{ proposal.title }}</strong><p class="text-sm text-slate-500">{{ proposal.customer?.name }} · {{ proposal.status }} · {{ money(proposal.total) }}</p></div><button class="text-blue-600" @click="editProposal(proposal)">Editar</button></div>
-                  <div class="mt-3 flex flex-wrap gap-3 text-sm"><a v-if="proposal.public_token" class="text-blue-600" :href="'/p/' + proposal.public_token.token" target="_blank">Link público</a><button class="text-emerald-600" @click="sendProposal(proposal)">Enviar e-mail</button><button class="text-rose-600" @click="destroy('/propostas/' + proposal.id)">Excluir</button></div>
+                  <div class="flex justify-between gap-3"><div><strong>{{ proposal.title }}</strong><p class="text-sm text-slate-500">{{ proposal.customer?.name }} · {{ proposal.status }} · {{ money(proposal.total) }}</p></div><a class="text-blue-600" :href="'/propostas/' + proposal.id" @click.prevent="editProposal(proposal)">Editar</a></div>
+                  <div class="mt-3 flex flex-wrap gap-3 text-sm"><a v-if="proposal.public_token" class="text-blue-600" :href="'/p/' + proposal.public_token.token" target="_blank">Link público</a><a class="text-emerald-600" :href="'/propostas/' + proposal.id + '/enviar'" @click.prevent="sendProposal(proposal)">Enviar e-mail</a><a class="text-rose-600" :href="'/propostas/' + proposal.id" @click.prevent="destroy('/propostas/' + proposal.id)">Excluir</a></div>
                 </div>
               </article>
             </div>

@@ -21,7 +21,7 @@ class PublicProposalService
         $publicToken->update(['last_viewed_at' => now()]);
         $proposal = $publicToken->proposal;
 
-        if ($proposal->status === ProposalStatus::Sent || $proposal->status === ProposalStatus::Draft) {
+        if ($proposal->status === ProposalStatus::Sent) {
             $proposal->update(['status' => ProposalStatus::Viewed, 'viewed_at' => $proposal->viewed_at ?? now()]);
         }
 
@@ -42,7 +42,7 @@ class PublicProposalService
 
     public function reject(Proposal $proposal): Proposal
     {
-        $proposal = DB::transaction(function () use ($proposal): Proposal {
+        return DB::transaction(function () use ($proposal): Proposal {
             $this->deliveryService->notifyRejection($proposal);
             $proposal->update([
                 'status' => ProposalStatus::Rejected,
