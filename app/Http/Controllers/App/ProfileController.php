@@ -12,9 +12,7 @@ class ProfileController extends Controller
 {
     public function edit(Request $request)
     {
-        return view('app.profile.edit', [
-            'user' => $request->user()->load('plan'),
-        ]);
+        return app(AppPageController::class)($request);
     }
 
     public function update(ProfileRequest $request)

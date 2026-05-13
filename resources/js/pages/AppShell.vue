@@ -64,7 +64,16 @@ export default defineComponent({
     const page = mount?.dataset.page ?? 'app';
     const user = ref<RecordData>(JSON.parse(mount?.dataset.user ?? '{}'));
     const isAdmin = mount?.dataset.admin === 'true';
-    const active = ref(page === 'admin' ? 'admin' : 'dashboard');
+    const initialSection = () => {
+      if (page === 'admin' || window.location.pathname.startsWith('/admin')) return 'admin';
+      if (window.location.pathname.startsWith('/clientes')) return 'customers';
+      if (window.location.pathname.startsWith('/servicos')) return 'services';
+      if (window.location.pathname.startsWith('/propostas')) return 'proposals';
+      if (window.location.pathname.startsWith('/perfil')) return 'profile';
+
+      return 'dashboard';
+    };
+    const active = ref(initialSection());
     const message = ref('');
     const error = ref('');
     const loading = ref(false);
@@ -77,8 +86,8 @@ export default defineComponent({
     const users = ref<RecordData[]>([]);
     const settings = ref<RecordData>({});
 
-    const customerForm = reactive<RecordData>({ name: '', email: '', phone: '', document: '', address: '', notes: '' });
-    const serviceForm = reactive<RecordData>({ name: '', description: '', unit_price: 0, is_active: true });
+    const customerForm = reactive<RecordData>({ id: null, name: '', email: '', phone: '', document: '', address: '', notes: '' });
+    const serviceForm = reactive<RecordData>({ id: null, name: '', description: '', unit_price: 0, is_active: true });
     const proposalForm = reactive<RecordData>({
       id: null,
       customer_id: '',
@@ -102,6 +111,14 @@ export default defineComponent({
       is_active: true,
     });
     const userForm = reactive<RecordData>({ id: null, name: '', email: '', plan_id: '', role: 'user', is_active: true });
+    const profileForm = reactive<RecordData>({
+      business_name: user.value.business_name ?? '',
+      contact_details: user.value.contact_details ?? '',
+      default_footer_text: user.value.default_footer_text ?? '',
+      primary_color: user.value.primary_color ?? '#2563eb',
+      secondary_color: user.value.secondary_color ?? '#0f172a',
+      logo: null,
+    });
 
     const proposalSubtotal = computed(() => proposalForm.items.reduce((total: number, item: RecordData) => total + Number(item.quantity || 0) * Number(item.unit_price || 0), 0));
     const proposalTotal = computed(() => Math.max(0, proposalSubtotal.value - Number(proposalForm.discount || 0)));
@@ -150,6 +167,20 @@ export default defineComponent({
       }
     };
 
+    const resetCustomer = () => Object.assign(customerForm, { id: null, name: '', email: '', phone: '', document: '', address: '', notes: '' });
+
+    const resetService = () => Object.assign(serviceForm, { id: null, name: '', description: '', unit_price: 0, is_active: true });
+
+    const editCustomer = (customer: RecordData) => {
+      Object.assign(customerForm, customer);
+      active.value = 'customers';
+    };
+
+    const editService = (service: RecordData) => {
+      Object.assign(serviceForm, service);
+      active.value = 'services';
+    };
+
     const resetProposal = () => {
       Object.assign(proposalForm, { id: null, customer_id: '', title: '', description: '', valid_until: '', discount: 0, notes: '', commercial_terms: '', items: [{ description: '', quantity: 1, unit_price: 0 }] });
     };
@@ -166,18 +197,28 @@ export default defineComponent({
 
     const saveCustomer = async () => {
       try {
-        await axios.post('/clientes', customerForm);
-        Object.assign(customerForm, { name: '', email: '', phone: '', document: '', address: '', notes: '' });
-        setMessage('Cliente criado com sucesso.');
+        if (customerForm.id) {
+          await axios.put(`/clientes/${customerForm.id}`, customerForm);
+          setMessage('Cliente atualizado com sucesso.');
+        } else {
+          await axios.post('/clientes', customerForm);
+          setMessage('Cliente criado com sucesso.');
+        }
+        resetCustomer();
         await load();
       } catch (exception) { setError(exception); }
     };
 
     const saveService = async () => {
       try {
-        await axios.post('/servicos', serviceForm);
-        Object.assign(serviceForm, { name: '', description: '', unit_price: 0, is_active: true });
-        setMessage('Serviço criado com sucesso.');
+        if (serviceForm.id) {
+          await axios.put(`/servicos/${serviceForm.id}`, serviceForm);
+          setMessage('Serviço atualizado com sucesso.');
+        } else {
+          await axios.post('/servicos', serviceForm);
+          setMessage('Serviço criado com sucesso.');
+        }
+        resetService();
         await load();
       } catch (exception) { setError(exception); }
     };
@@ -254,6 +295,36 @@ export default defineComponent({
       } catch (exception) { setError(exception); }
     };
 
+    const saveProfile = async () => {
+      try {
+        const payload = new FormData();
+        payload.append('_method', 'PUT');
+        ['business_name', 'contact_details', 'default_footer_text', 'primary_color', 'secondary_color'].forEach((key) => {
+          payload.append(key, profileForm[key] ?? '');
+        });
+        if (profileForm.logo instanceof File) {
+          payload.append('logo', profileForm.logo);
+        }
+
+        const response = await axios.post('/perfil', payload, { headers: { Accept: 'application/json', 'Content-Type': 'multipart/form-data' } });
+        user.value = response.data;
+        Object.assign(profileForm, {
+          business_name: response.data.business_name ?? '',
+          contact_details: response.data.contact_details ?? '',
+          default_footer_text: response.data.default_footer_text ?? '',
+          primary_color: response.data.primary_color ?? '#2563eb',
+          secondary_color: response.data.secondary_color ?? '#0f172a',
+          logo: null,
+        });
+        setMessage('Perfil atualizado com sucesso.');
+      } catch (exception) { setError(exception); }
+    };
+
+    const selectLogo = (event: Event) => {
+      const input = event.target as HTMLInputElement;
+      profileForm.logo = input.files?.[0] ?? null;
+    };
+
     const logout = () => {
       const form = document.createElement('form');
       const csrfToken = document.querySelector<HTMLMetaElement>('meta[name=\"csrf-token\"]')?.content ?? '';
@@ -276,10 +347,10 @@ export default defineComponent({
     onMounted(load);
 
     return {
-      active, customerForm, customers, destroy, editPlan, editProposal, error, field, formatStatLabel, formatStatValue, isAdmin, loading, logout, message, money,
+      active, customerForm, customers, destroy, editCustomer, editPlan, editProposal, editService, error, field, formatStatLabel, formatStatValue, isAdmin, loading, logout, message, money,
       planForm, plans, proposalForm, proposalSubtotal, proposalTotal, proposals, resetProposal, saveCustomer,
-      savePlan, saveProposal, saveService, saveSettings, saveUser, sendProposal, serviceForm, services,
-      settingInputType, settingLabel, settings, stats, user, userForm, users,
+      savePlan, saveProfile, saveProposal, saveService, saveSettings, saveUser, selectLogo, sendProposal, serviceForm, services,
+      settingInputType, settingLabel, settings, stats, user, userForm, users, profileForm, resetCustomer, resetService,
     };
   },
 });
@@ -296,7 +367,7 @@ export default defineComponent({
           <button class="rounded-xl px-4 py-3 text-left hover:bg-white/10" @click="active = 'customers'">Clientes</button>
           <button class="rounded-xl px-4 py-3 text-left hover:bg-white/10" @click="active = 'services'">Serviços</button>
           <button v-if="isAdmin" class="rounded-xl px-4 py-3 text-left hover:bg-white/10" @click="active = 'admin'">Admin</button>
-          <a class="rounded-xl px-4 py-3 hover:bg-white/10" href="/perfil">Perfil da marca</a>
+          <button class="rounded-xl px-4 py-3 text-left hover:bg-white/10" @click="active = 'profile'">Perfil da marca</button>
           <button class="rounded-xl px-4 py-3 text-left hover:bg-white/10" type="button" @click="logout">Sair</button>
         </nav>
       </aside>
@@ -312,6 +383,7 @@ export default defineComponent({
               <button class="rounded bg-slate-900 px-3 py-2 text-white" @click="active='dashboard'">Dashboard</button>
               <button class="rounded bg-slate-900 px-3 py-2 text-white" @click="active='proposals'">Propostas</button>
               <button v-if="isAdmin" class="rounded bg-slate-900 px-3 py-2 text-white" @click="active='admin'">Admin</button>
+              <button class="rounded bg-slate-900 px-3 py-2 text-white" @click="active='profile'">Perfil</button>
               <button class="rounded bg-rose-600 px-3 py-2 text-white" type="button" @click="logout">Sair</button>
             </div>
           </div>
@@ -331,37 +403,37 @@ export default defineComponent({
 
           <section v-if="active === 'customers'" class="grid gap-6 lg:grid-cols-[1fr_2fr]">
             <form class="rounded-3xl bg-white p-6 shadow-sm" @submit.prevent="saveCustomer">
-              <h2 class="text-xl font-bold">Novo cliente</h2>
+              <div class="flex items-center justify-between"><h2 class="text-xl font-bold">{{ customerForm.id ? 'Editar cliente' : 'Novo cliente' }}</h2><button v-if="customerForm.id" type="button" class="text-sm text-blue-600" @click="resetCustomer">Novo</button></div>
               <input v-model="customerForm.name" class="mt-4 w-full rounded-xl border p-3" placeholder="Nome" required>
               <input v-model="customerForm.email" class="mt-3 w-full rounded-xl border p-3" placeholder="E-mail">
               <input v-model="customerForm.phone" class="mt-3 w-full rounded-xl border p-3" placeholder="Telefone">
               <input v-model="customerForm.document" class="mt-3 w-full rounded-xl border p-3" placeholder="Documento">
               <textarea v-model="customerForm.address" class="mt-3 w-full rounded-xl border p-3" placeholder="Endereço"></textarea>
-              <button class="mt-4 rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white">Salvar cliente</button>
+              <button class="mt-4 rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white">{{ customerForm.id ? 'Atualizar cliente' : 'Salvar cliente' }}</button>
             </form>
             <div class="rounded-3xl bg-white p-6 shadow-sm">
               <h2 class="text-xl font-bold">Clientes cadastrados</h2>
-              <div v-for="customer in customers" :key="customer.id" class="mt-4 flex items-center justify-between rounded-2xl border p-4">
+              <div v-for="customer in customers" :key="customer.id" class="mt-4 flex items-center justify-between gap-4 rounded-2xl border p-4">
                 <div><strong>{{ customer.name }}</strong><p class="text-sm text-slate-500">{{ customer.email || customer.phone || 'Sem contato' }}</p></div>
-                <button class="text-rose-600" @click="destroy('/clientes/' + customer.id)">Excluir</button>
+                <div class="flex gap-3 text-sm"><button class="text-blue-600" @click="editCustomer(customer)">Editar</button><button class="text-rose-600" @click="destroy('/clientes/' + customer.id)">Excluir</button></div>
               </div>
             </div>
           </section>
 
           <section v-if="active === 'services'" class="grid gap-6 lg:grid-cols-[1fr_2fr]">
             <form class="rounded-3xl bg-white p-6 shadow-sm" @submit.prevent="saveService">
-              <h2 class="text-xl font-bold">Novo serviço</h2>
+              <div class="flex items-center justify-between"><h2 class="text-xl font-bold">{{ serviceForm.id ? 'Editar serviço' : 'Novo serviço' }}</h2><button v-if="serviceForm.id" type="button" class="text-sm text-blue-600" @click="resetService">Novo</button></div>
               <input v-model="serviceForm.name" class="mt-4 w-full rounded-xl border p-3" placeholder="Nome" required>
               <textarea v-model="serviceForm.description" class="mt-3 w-full rounded-xl border p-3" placeholder="Descrição"></textarea>
               <input v-model.number="serviceForm.unit_price" type="number" step="0.01" class="mt-3 w-full rounded-xl border p-3" placeholder="Preço" required>
               <label class="mt-3 flex gap-2"><input v-model="serviceForm.is_active" type="checkbox"> Ativo</label>
-              <button class="mt-4 rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white">Salvar serviço</button>
+              <button class="mt-4 rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white">{{ serviceForm.id ? 'Atualizar serviço' : 'Salvar serviço' }}</button>
             </form>
             <div class="rounded-3xl bg-white p-6 shadow-sm">
               <h2 class="text-xl font-bold">Catálogo</h2>
-              <div v-for="service in services" :key="service.id" class="mt-4 flex items-center justify-between rounded-2xl border p-4">
+              <div v-for="service in services" :key="service.id" class="mt-4 flex items-center justify-between gap-4 rounded-2xl border p-4">
                 <div><strong>{{ service.name }}</strong><p class="text-sm text-slate-500">{{ money(service.unit_price) }}</p></div>
-                <button class="text-rose-600" @click="destroy('/servicos/' + service.id)">Excluir</button>
+                <div class="flex gap-3 text-sm"><button class="text-blue-600" @click="editService(service)">Editar</button><button class="text-rose-600" @click="destroy('/servicos/' + service.id)">Excluir</button></div>
               </div>
             </div>
           </section>
@@ -405,11 +477,37 @@ export default defineComponent({
             </div>
           </section>
 
+
+          <section v-if="active === 'profile'" class="grid gap-6 lg:grid-cols-[1fr_.9fr]">
+            <form class="rounded-3xl bg-white p-6 shadow-sm" @submit.prevent="saveProfile">
+              <h2 class="text-xl font-bold">Perfil da marca</h2>
+              <p class="mt-1 text-sm text-slate-500">Personalize os dados usados nas propostas e na comunicação com clientes.</p>
+              <input v-model="profileForm.business_name" class="mt-4 w-full rounded-xl border p-3" placeholder="Nome da empresa">
+              <textarea v-model="profileForm.contact_details" class="mt-3 w-full rounded-xl border p-3" placeholder="Dados de contato"></textarea>
+              <textarea v-model="profileForm.default_footer_text" class="mt-3 w-full rounded-xl border p-3" placeholder="Texto padrão de rodapé"></textarea>
+              <div class="mt-3 grid gap-3 sm:grid-cols-2">
+                <label class="grid gap-1 text-sm"><span>Cor primária</span><input v-model="profileForm.primary_color" type="color" class="h-12 rounded-xl border p-1"></label>
+                <label class="grid gap-1 text-sm"><span>Cor secundária</span><input v-model="profileForm.secondary_color" type="color" class="h-12 rounded-xl border p-1"></label>
+              </div>
+              <label class="mt-3 grid gap-1 text-sm"><span>Logo</span><input type="file" accept="image/*" class="rounded-xl border p-3" @change="selectLogo"></label>
+              <p v-if="!user.plan?.allows_custom_logo" class="mt-2 text-sm text-amber-600">Seu plano atual não permite enviar logo customizada.</p>
+              <button class="mt-4 rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white">Salvar perfil</button>
+            </form>
+            <article class="rounded-3xl bg-white p-6 shadow-sm">
+              <p class="text-sm uppercase tracking-wide text-slate-500">Prévia da identidade</p>
+              <div class="mt-4 rounded-3xl p-6 text-white" :style="{ background: `linear-gradient(135deg, ${profileForm.primary_color}, ${profileForm.secondary_color})` }">
+                <strong class="text-2xl">{{ profileForm.business_name || user.name }}</strong>
+                <p class="mt-4 whitespace-pre-line text-sm text-white/90">{{ profileForm.contact_details || 'Dados de contato aparecerão aqui.' }}</p>
+              </div>
+              <p class="mt-4 whitespace-pre-line text-sm text-slate-500">{{ profileForm.default_footer_text || 'Rodapé padrão das propostas.' }}</p>
+            </article>
+          </section>
+
           <section v-if="active === 'admin' && isAdmin" class="grid gap-6">
             <div class="grid gap-4 md:grid-cols-4"><article v-for="(value, key) in stats" :key="key" class="rounded-3xl bg-slate-950 p-5 text-white"><p class="text-xs uppercase text-slate-400">{{ formatStatLabel(key) }}</p><strong class="mt-2 block break-words text-2xl">{{ formatStatValue(value, key) }}</strong></article></div>
             <div class="grid gap-6 xl:grid-cols-2">
-              <form class="rounded-3xl bg-white p-6 shadow-sm" @submit.prevent="savePlan"><h2 class="text-xl font-bold">Planos</h2><input v-model="planForm.name" class="mt-4 w-full rounded-xl border p-3" placeholder="Nome" required><input v-model="planForm.slug" class="mt-3 w-full rounded-xl border p-3" placeholder="Slug" required><input v-model.number="planForm.monthly_price_cents" type="number" class="mt-3 w-full rounded-xl border p-3" placeholder="Preço em centavos" required><div class="mt-3 grid gap-3 md:grid-cols-2"><input v-model="planForm.monthly_proposal_limit" type="number" class="rounded-xl border p-3" placeholder="Limite propostas"><input v-model="planForm.customer_limit" type="number" class="rounded-xl border p-3" placeholder="Limite clientes"></div><label class="mt-3 flex gap-2"><input v-model="planForm.allows_pdf" type="checkbox"> PDF</label><label class="mt-2 flex gap-2"><input v-model="planForm.allows_custom_logo" type="checkbox"> Logo customizada</label><label class="mt-2 flex gap-2"><input v-model="planForm.is_active" type="checkbox"> Ativo</label><button class="mt-4 rounded-xl bg-slate-950 px-5 py-3 font-semibold text-white">Salvar plano</button><div v-for="plan in plans" class="mt-3 flex justify-between rounded-xl border p-3"><span>{{ plan.name }} · {{ money(plan.monthly_price_cents / 100) }}</span><button type="button" class="text-blue-600" @click="editPlan(plan)">Editar</button></div></form>
-              <form class="rounded-3xl bg-white p-6 shadow-sm" @submit.prevent="saveUser"><h2 class="text-xl font-bold">Usuários</h2><select v-model="userForm.id" class="mt-4 w-full rounded-xl border p-3" @change="Object.assign(userForm, users.find(u => u.id == userForm.id) ?? userForm)"><option value="">Selecione</option><option v-for="item in users" :value="item.id">{{ item.name }}</option></select><input v-model="userForm.name" class="mt-3 w-full rounded-xl border p-3" placeholder="Nome" required><input v-model="userForm.email" class="mt-3 w-full rounded-xl border p-3" placeholder="E-mail" required><select v-model="userForm.plan_id" class="mt-3 w-full rounded-xl border p-3"><option value="">Sem plano</option><option v-for="plan in plans" :value="plan.id">{{ plan.name }}</option></select><select v-model="userForm.role" class="mt-3 w-full rounded-xl border p-3"><option value="user">Usuário</option><option value="admin">Admin</option></select><label class="mt-3 flex gap-2"><input v-model="userForm.is_active" type="checkbox"> Ativo</label><button class="mt-4 rounded-xl bg-slate-950 px-5 py-3 font-semibold text-white" :disabled="!userForm.id">Atualizar usuário</button></form>
+              <form class="rounded-3xl bg-white p-6 shadow-sm" @submit.prevent="savePlan"><h2 class="text-xl font-bold">Planos</h2><input v-model="planForm.name" class="mt-4 w-full rounded-xl border p-3" placeholder="Nome" required><input v-model="planForm.slug" class="mt-3 w-full rounded-xl border p-3" placeholder="Slug" required><input v-model.number="planForm.monthly_price_cents" type="number" class="mt-3 w-full rounded-xl border p-3" placeholder="Preço em centavos" required><div class="mt-3 grid gap-3 md:grid-cols-2"><input v-model="planForm.monthly_proposal_limit" type="number" class="rounded-xl border p-3" placeholder="Limite propostas"><input v-model="planForm.customer_limit" type="number" class="rounded-xl border p-3" placeholder="Limite clientes"></div><label class="mt-3 flex gap-2"><input v-model="planForm.allows_pdf" type="checkbox"> PDF</label><label class="mt-2 flex gap-2"><input v-model="planForm.allows_custom_logo" type="checkbox"> Logo customizada</label><label class="mt-2 flex gap-2"><input v-model="planForm.is_active" type="checkbox"> Ativo</label><button class="mt-4 rounded-xl bg-slate-950 px-5 py-3 font-semibold text-white">{{ planForm.id ? 'Atualizar plano' : 'Salvar plano' }}</button><div v-for="plan in plans" :key="plan.id" class="mt-3 flex justify-between gap-3 rounded-xl border p-3"><span>{{ plan.name }} · {{ money(plan.monthly_price_cents / 100) }}</span><div class="flex gap-3 text-sm"><button type="button" class="text-blue-600" @click="editPlan(plan)">Editar</button><button type="button" class="text-rose-600" @click="destroy('/admin/planos/' + plan.id)">Excluir</button></div></div></form>
+              <form class="rounded-3xl bg-white p-6 shadow-sm" @submit.prevent="saveUser"><h2 class="text-xl font-bold">Usuários</h2><select v-model="userForm.id" class="mt-4 w-full rounded-xl border p-3" @change="Object.assign(userForm, users.find(u => u.id == userForm.id) ?? userForm)"><option value="">Selecione</option><option v-for="item in users" :value="item.id">{{ item.name }}</option></select><input v-model="userForm.name" class="mt-3 w-full rounded-xl border p-3" placeholder="Nome" required><input v-model="userForm.email" class="mt-3 w-full rounded-xl border p-3" placeholder="E-mail" required><select v-model="userForm.plan_id" class="mt-3 w-full rounded-xl border p-3"><option value="">Sem plano</option><option v-for="plan in plans" :value="plan.id">{{ plan.name }}</option></select><select v-model="userForm.role" class="mt-3 w-full rounded-xl border p-3"><option value="user">Usuário</option><option value="admin">Admin</option></select><label class="mt-3 flex gap-2"><input v-model="userForm.is_active" type="checkbox"> Ativo</label><div class="mt-4 flex flex-wrap gap-3"><button class="rounded-xl bg-slate-950 px-5 py-3 font-semibold text-white" :disabled="!userForm.id">Atualizar usuário</button><button type="button" class="rounded-xl border border-rose-200 px-5 py-3 font-semibold text-rose-600" :disabled="!userForm.id" @click="destroy('/admin/usuarios/' + userForm.id, 'Confirma a desativação deste usuário?')">Desativar</button></div></form>
             </div>
             <form class="rounded-3xl bg-white p-6 shadow-sm" @submit.prevent="saveSettings">
               <h2 class="text-xl font-bold">Configurações</h2>
