@@ -34,6 +34,7 @@
 - [x] Adicionar Aprovada / Recusada em um badge, ou melhorar layout de itens da lista de proposta cadastradas
 - [x] Aparentemente "Serviços" não está sendo usado, verificar. Avisar o que fazer, antes de fazer.
   - Verificado: Serviços existe como CRUD/catálogo, mas ainda não alimenta os itens da proposta. Recomendação: integrar no editor para preencher descrição e preço dos itens, sem obrigar vínculo rígido no histórico da proposta.
+  - Implementado: o editor de propostas permite selecionar um serviço ativo para preencher descrição e preço do item, mantendo os campos editáveis.
 - [x] Filtros no Dashboard
 - [x] Filtros e paginação em listagens (Propostas, Clientes, Serviços)
 - [x] Input de pesquisa em selects (Clientes em Proposta)
