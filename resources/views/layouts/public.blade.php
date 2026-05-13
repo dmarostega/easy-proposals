@@ -27,15 +27,19 @@
     </script>
     @vite(['resources/css/app.css', 'resources/js/app.ts'])
     @php
-        $brandingUser = $proposal->user ?? auth()->user();
-        $brandName = $brandingUser?->business_name ?: 'Proposta Fácil';
+        $proposalModel = $proposal ?? null;
+        $brandingUser = $proposalModel?->user ?? auth()->user();
+        $appSettings = \App\Models\AppSetting::query()->pluck('value', 'key');
+        $primaryColor = $brandingUser?->primary_color ?: ($appSettings['primary_color'] ?? '#2563eb');
+        $secondaryColor = $brandingUser?->secondary_color ?: ($appSettings['secondary_color'] ?? '#0f172a');
+        $brandName = $brandingUser?->business_name ?: ($appSettings['app_name'] ?? 'Proposta Fácil');
         $brandLogo = $brandingUser?->plan?->allows_custom_logo && $brandingUser?->logo_path
             ? \Illuminate\Support\Facades\Storage::url($brandingUser->logo_path)
             : null;
-        $brandFooter = $brandingUser?->default_footer_text ?: '© '.date('Y').' Proposta Fácil. Feito para freelancers e pequenos negócios.';
+        $brandFooter = $brandingUser?->default_footer_text ?: '© '.date('Y').' '.$brandName.'. Feito para freelancers e pequenos negócios.';
     @endphp
 </head>
-<body class="bg-slate-50 text-slate-900" style="--color-primary:{{ $brandingUser?->primary_color ?? '#2563eb' }};--color-secondary:{{ $brandingUser?->secondary_color ?? '#0f172a' }}">
+<body class="bg-slate-50 text-slate-900" style="--color-primary:{{ $primaryColor }};--color-secondary:{{ $secondaryColor }}">
 <header class="mx-auto flex max-w-6xl items-center justify-between p-6">
     <a href="{{ route('home') }}" class="flex items-center gap-3 text-xl font-bold text-[var(--color-primary)]">
         @if ($brandLogo)
@@ -44,7 +48,7 @@
             <span>{{ $brandName }}</span>
         @endif
     </a>
-    <nav class="flex items-center gap-4 text-sm">
+    <nav class="flex items-center gap-4 text-sm text-[var(--color-secondary)]">
         <a href="{{ route('features') }}">Recursos</a>
         <a href="{{ route('pricing') }}">Preços</a>
         <a href="{{ route('terms') }}">Termos</a>
@@ -52,12 +56,16 @@
         @auth
             <a href="{{ route('dashboard') }}">Dashboard</a>
             <a href="{{ route('profile.edit') }}">Perfil</a>
+            <form method="POST" action="{{ route('logout') }}">
+                @csrf
+                <button type="submit" class="font-medium text-[var(--color-primary)]">Sair</button>
+            </form>
         @else
             <a href="{{ route('login') }}">Entrar</a>
         @endauth
     </nav>
 </header>
 <main class="mx-auto max-w-6xl p-6">@yield('content')</main>
-<footer class="mx-auto max-w-6xl p-6 text-sm text-slate-500">{{ $brandFooter }}</footer>
+<footer class="mx-auto max-w-6xl p-6 text-sm text-[var(--color-secondary)]/80">{{ $brandFooter }}</footer>
 </body>
 </html>

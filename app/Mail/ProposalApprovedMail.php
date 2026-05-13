@@ -9,8 +9,7 @@ use Illuminate\Queue\SerializesModels;
 
 class ProposalApprovedMail extends Mailable
 {
-    use Queueable;
-    use SerializesModels;
+    use Queueable, SerializesModels;
 
     public function __construct(public readonly Proposal $proposal) {}
 
@@ -18,7 +17,9 @@ class ProposalApprovedMail extends Mailable
     {
         return $this
             ->subject('Proposta aprovada: '.$this->proposal->title)
-            ->view('mail.proposals.approved')
-            ->with(['proposal' => $this->proposal]);
+            ->markdown('emails.proposals.approved', [
+                'proposal' => $this->proposal,
+                'url' => route('public.proposals.show', $this->proposal->publicToken->token),
+            ]);
     }
 }

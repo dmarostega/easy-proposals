@@ -18,10 +18,9 @@ class ProposalSentMail extends Mailable
     {
         return $this
             ->subject('Nova proposta: '.$this->proposal->title)
-            ->view('mail.proposals.sent')
-            ->with([
+            ->markdown('emails.proposals.sent', [
                 'proposal' => $this->proposal,
-                'publicUrl' => route('public.proposals.show', $this->proposal->publicToken->token),
+                'url' => route('public.proposals.show', $this->proposal->publicToken->token),
             ]);
     }
 }

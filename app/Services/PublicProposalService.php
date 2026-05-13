@@ -30,14 +30,12 @@ class PublicProposalService
 
     public function approve(Proposal $proposal): Proposal
     {
-        $proposal = DB::transaction(function () use ($proposal): Proposal {
-            $proposal->update([
-                'status' => ProposalStatus::Approved,
-                'approved_at' => now(),
-                'rejected_at' => null,
-            ]);
+        return DB::transaction(function () use ($proposal): Proposal {
+            if ($proposal->status !== ProposalStatus::Approved) {
+                $proposal->update(['status' => ProposalStatus::Approved, 'approved_at' => now(), 'rejected_at' => null]);
+            }
 
-            return $proposal->fresh(['items', 'customer', 'user']);
+            return $proposal->fresh(['items', 'customer']);
         });
 
         $this->deliveryService->notifyApproval($proposal);
