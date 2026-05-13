@@ -2,9 +2,9 @@
 
 @section('content')
     <section class="space-y-8">
-        <div class="rounded-3xl bg-white p-8 shadow-sm ring-1 ring-slate-200">
+        <div class="rounded-3xl bg-white p-8 shadow-sm ring-1 ring-[var(--color-primary)]/20">
             <p class="text-sm font-semibold uppercase tracking-wide text-[var(--color-primary)]">Minha marca</p>
-            <h1 class="mt-2 text-3xl font-bold text-slate-950">Personalize suas propostas</h1>
+            <h1 class="mt-2 text-3xl font-bold text-[var(--color-secondary)]">Personalize suas propostas</h1>
             <p class="mt-3 max-w-2xl text-slate-600">Configure nome comercial, cores, contatos e o rodapé padrão exibidos nos documentos e links públicos.</p>
         </div>
 
@@ -23,7 +23,7 @@
             </div>
         @endif
 
-        <form method="POST" action="{{ route('profile.update') }}" enctype="multipart/form-data" class="grid gap-6 rounded-3xl bg-white p-8 shadow-sm ring-1 ring-slate-200 md:grid-cols-2">
+        <form method="POST" action="{{ route('profile.update') }}" enctype="multipart/form-data" class="grid gap-6 rounded-3xl bg-white p-8 shadow-sm ring-1 ring-[var(--color-primary)]/20 md:grid-cols-2">
             @csrf
             @method('PUT')
 

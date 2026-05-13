@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Enums\ProposalStatus;
 use App\Enums\UserRole;
+use App\Mail\ProposalApprovedMail;
+use App\Mail\ProposalSentMail;
 use App\Models\Customer;
 use App\Models\Plan;
 use App\Models\Proposal;
@@ -11,6 +13,7 @@ use App\Models\User;
 use App\Services\ProposalService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
@@ -175,5 +178,54 @@ class ProposalSaasTest extends TestCase
 
         $this->actingAs($regularUser)->get(route('admin.reports'))->assertForbidden();
         $this->actingAs($admin)->get(route('admin.reports'))->assertOk();
+        $this->actingAs($admin)->get(route('admin.index'))->assertOk();
+    }
+
+    public function test_proposal_send_and_approval_dispatch_transactional_emails(): void
+    {
+        Mail::fake();
+
+        $user = User::factory()->create(['plan_id' => Plan::factory()->unlimited()->create()->id]);
+        $customer = Customer::factory()->create([
+            'user_id' => $user->id,
+            'email' => 'cliente@example.com',
+        ]);
+        $proposal = app(ProposalService::class)->create($user, [
+            'customer_id' => $customer->id,
+            'title' => 'Landing page',
+            'items' => [['description' => 'Design', 'quantity' => 1, 'unit_price' => 500]],
+        ]);
+
+        $this->actingAs($user)->postJson(route('propostas.send', $proposal))->assertOk();
+
+        $proposal->refresh();
+        $this->assertSame(ProposalStatus::Sent, $proposal->status);
+        $this->assertNotNull($proposal->sent_at);
+        Mail::assertSent(ProposalSentMail::class, fn (ProposalSentMail $mail) => $mail->hasTo('cliente@example.com'));
+
+        $this->post(route('public.proposals.approve', $proposal->publicToken->token))->assertRedirect();
+        $this->post(route('public.proposals.approve', $proposal->publicToken->token))->assertRedirect();
+
+        Mail::assertSent(ProposalApprovedMail::class, 1);
+        Mail::assertSent(ProposalApprovedMail::class, fn (ProposalApprovedMail $mail) => $mail->hasTo($user->email));
+    }
+
+    public function test_public_proposal_actions_are_hidden_after_approval(): void
+    {
+        $user = User::factory()->create(['plan_id' => Plan::factory()->unlimited()->create()->id]);
+        $customer = Customer::factory()->create(['user_id' => $user->id]);
+        $proposal = app(ProposalService::class)->create($user, [
+            'customer_id' => $customer->id,
+            'title' => 'Landing page',
+            'items' => [['description' => 'Design', 'quantity' => 1, 'unit_price' => 500]],
+        ]);
+
+        $this->post(route('public.proposals.approve', $proposal->publicToken->token))->assertRedirect();
+
+        $this->get(route('public.proposals.show', $proposal->publicToken->token))
+            ->assertOk()
+            ->assertSee('Esta proposta já foi aprovada.')
+            ->assertDontSee('Aprovar')
+            ->assertDontSee('Recusar');
     }
 }
