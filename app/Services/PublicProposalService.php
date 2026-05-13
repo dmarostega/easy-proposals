@@ -32,20 +32,18 @@ class PublicProposalService
     {
         return DB::transaction(function () use ($proposal): Proposal {
             if ($proposal->status !== ProposalStatus::Approved) {
+                $this->deliveryService->notifyApproval($proposal);
                 $proposal->update(['status' => ProposalStatus::Approved, 'approved_at' => now(), 'rejected_at' => null]);
             }
 
             return $proposal->fresh(['items', 'customer']);
         });
-
-        $this->deliveryService->notifyApproval($proposal);
-
-        return $proposal;
     }
 
     public function reject(Proposal $proposal): Proposal
     {
         $proposal = DB::transaction(function () use ($proposal): Proposal {
+            $this->deliveryService->notifyRejection($proposal);
             $proposal->update([
                 'status' => ProposalStatus::Rejected,
                 'rejected_at' => now(),
@@ -54,9 +52,5 @@ class PublicProposalService
 
             return $proposal->fresh(['items', 'customer', 'user']);
         });
-
-        $this->deliveryService->notifyRejection($proposal);
-
-        return $proposal;
     }
 }
