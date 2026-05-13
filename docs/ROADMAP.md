@@ -29,3 +29,13 @@
 - [ ] Portal de assinatura.
 - [ ] Webhooks de pagamento.
 - [ ] Métricas SaaS avançadas.
+
+## Outras Melhorias
+- [ ] Adicionar Aprovada / Recusada em um badge, ou melhorar layout de itens da lista de proposta cadastradas
+- [ ] Aparentemente "Serviços" não está sendo usado, verificar
+- [ ] Filtros no Dashboard
+- [ ] Filtros e paginação em listagens (Propostas, Clientes)
+- [ ] Input de pesquisa em selects (Clientes em Proposta)
+- [ ] Validar se usuário Admin do sistema deve ter menus de propostas, clientes, serviços e perfil da marca
+- [ ] Gerar conteudos, pagina Inicial, termos e privacidade,
+- [ ] melhorar recursos e preços (está sem valor)
