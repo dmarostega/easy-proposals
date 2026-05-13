@@ -29,3 +29,7 @@
 - [ ] Portal de assinatura.
 - [ ] Webhooks de pagamento.
 - [ ] Métricas SaaS avançadas.
+
+## Outras Melhorias
+- [ ] Adicionar Aprovada / Recusada em um badge, ou melhorar layout de itens da lista de proposta cadastradas
+- [ ] Aparentemente "Serviços" não está sendo usado, verificar
