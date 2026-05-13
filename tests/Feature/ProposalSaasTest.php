@@ -5,7 +5,9 @@ namespace Tests\Feature;
 use App\Enums\ProposalStatus;
 use App\Enums\UserRole;
 use App\Mail\ProposalApprovedMail;
+use App\Mail\ProposalRejectedMail;
 use App\Mail\ProposalSentMail;
+use App\Mail\ProposalViewedMail;
 use App\Models\Customer;
 use App\Models\Plan;
 use App\Models\Proposal;
@@ -79,6 +81,39 @@ class ProposalSaasTest extends TestCase
         Mail::assertSent(ProposalSentMail::class, function (ProposalSentMail $mail) use ($customer): bool {
             return $mail->hasTo($customer->email);
         });
+        $this->assertDatabaseHas('proposal_events', [
+            'proposal_id' => $proposal->id,
+            'type' => 'sent',
+        ]);
+    }
+
+    public function test_user_can_download_real_pdf_for_proposal_when_plan_allows_it(): void
+    {
+        $user = User::factory()->create([
+            'plan_id' => Plan::factory()->unlimited()->create(['allows_pdf' => true])->id,
+            'business_name' => 'Studio Criativo',
+            'primary_color' => '#123456',
+            'secondary_color' => '#654321',
+            'default_footer_text' => 'Obrigado pela preferencia.',
+        ]);
+        $customer = Customer::factory()->create(['user_id' => $user->id]);
+        $proposal = app(ProposalService::class)->create($user, [
+            'customer_id' => $customer->id,
+            'title' => 'Projeto PDF',
+            'description' => 'Documento comercial',
+            'items' => [['description' => 'Design', 'quantity' => 1, 'unit_price' => 800]],
+        ]);
+
+        $response = $this->actingAs($user)->get(route('propostas.pdf', $proposal));
+
+        $response->assertOk();
+        $this->assertSame('application/pdf', $response->headers->get('content-type'));
+        $this->assertStringStartsWith('%PDF-', $response->getContent());
+        $this->assertStringContainsString('/Type /Catalog', $response->getContent());
+        $this->assertDatabaseHas('proposal_events', [
+            'proposal_id' => $proposal->id,
+            'type' => 'pdf_downloaded',
+        ]);
     }
 
     public function test_proposal_send_requires_customer_email(): void
@@ -123,6 +158,57 @@ class ProposalSaasTest extends TestCase
         Mail::assertSent(ProposalApprovedMail::class, function (ProposalApprovedMail $mail) use ($user): bool {
             return $mail->hasTo($user->email);
         });
+        $this->assertDatabaseHas('proposal_events', [
+            'proposal_id' => $proposal->id,
+            'type' => 'approved',
+        ]);
+    }
+
+    public function test_owner_is_notified_when_customer_views_sent_proposal_once(): void
+    {
+        Mail::fake();
+
+        $user = User::factory()->create(['plan_id' => Plan::factory()->unlimited()->create()->id]);
+        $customer = Customer::factory()->create(['user_id' => $user->id, 'email' => 'cliente@example.com']);
+        $proposal = app(ProposalService::class)->create($user, [
+            'customer_id' => $customer->id,
+            'title' => 'Landing page',
+            'items' => [['description' => 'Design', 'quantity' => 1, 'unit_price' => 500]],
+        ]);
+
+        $this->actingAs($user)->postJson(route('propostas.send', $proposal))->assertOk();
+        $this->get(route('public.proposals.show', $proposal->publicToken->token))->assertOk();
+        $this->get(route('public.proposals.show', $proposal->publicToken->token))->assertOk();
+
+        $proposal->refresh();
+        $this->assertSame(ProposalStatus::Viewed, $proposal->status);
+        $this->assertNotNull($proposal->viewed_at);
+        Mail::assertSent(ProposalViewedMail::class, 1);
+        Mail::assertSent(ProposalViewedMail::class, fn (ProposalViewedMail $mail) => $mail->hasTo($user->email));
+        $this->assertSame(1, $proposal->events()->where('type', 'viewed')->count());
+    }
+
+    public function test_owner_is_notified_when_customer_rejects_public_proposal_once(): void
+    {
+        Mail::fake();
+
+        $user = User::factory()->create(['plan_id' => Plan::factory()->unlimited()->create()->id]);
+        $customer = Customer::factory()->create(['user_id' => $user->id]);
+        $proposal = app(ProposalService::class)->create($user, [
+            'customer_id' => $customer->id,
+            'title' => 'Landing page',
+            'items' => [['description' => 'Design', 'quantity' => 1, 'unit_price' => 500]],
+        ]);
+
+        $this->post(route('public.proposals.reject', $proposal->publicToken->token))->assertRedirect();
+        $this->post(route('public.proposals.reject', $proposal->publicToken->token))->assertRedirect();
+
+        $proposal->refresh();
+        $this->assertSame(ProposalStatus::Rejected, $proposal->status);
+        $this->assertNotNull($proposal->rejected_at);
+        Mail::assertSent(ProposalRejectedMail::class, 1);
+        Mail::assertSent(ProposalRejectedMail::class, fn (ProposalRejectedMail $mail) => $mail->hasTo($user->email));
+        $this->assertSame(1, $proposal->events()->where('type', 'rejected')->count());
     }
 
     public function test_public_proposal_link_uses_owner_branding_for_guests(): void
@@ -181,7 +267,6 @@ class ProposalSaasTest extends TestCase
             ->assertUnprocessable()
             ->assertJsonValidationErrors('email');
     }
-
 
     public function test_user_with_branding_plan_can_upload_logo_and_update_profile(): void
     {

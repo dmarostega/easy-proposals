@@ -2,10 +2,10 @@
 
 namespace App\Services;
 
-use App\Enums\ProposalStatus;
 use App\Mail\ProposalApprovedMail;
 use App\Mail\ProposalRejectedMail;
 use App\Mail\ProposalSentMail;
+use App\Mail\ProposalViewedMail;
 use App\Models\Proposal;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
@@ -24,8 +24,8 @@ class ProposalDeliveryService
             ]);
         }
 
-        $this->proposalService->ensurePublicToken($proposal);
-        
+        $proposal = $this->proposalService->markAsSent($proposal);
+
         Mail::to($proposal->customer->email)->send(new ProposalSentMail($proposal->fresh([
             'customer',
             'items',
@@ -33,20 +33,18 @@ class ProposalDeliveryService
             'user',
         ])));
 
-
-        if (! in_array($proposal->status, [ProposalStatus::Approved, ProposalStatus::Rejected], true)) {
-            $proposal->forceFill([
-                'status' => ProposalStatus::Sent,
-                'sent_at' => $proposal->sent_at ?? now(),
-            ])->save();
-        }
-
         return $proposal->fresh(['customer', 'items', 'publicToken']);
+    }
+
+    public function notifyView(Proposal $proposal): void
+    {
+        $proposal->loadMissing(['customer', 'items', 'publicToken', 'user']);
+        Mail::to($proposal->user->email)->send(new ProposalViewedMail($proposal));
     }
 
     public function notifyApproval(Proposal $proposal): void
     {
-        $proposal->loadMissing(['customer', 'items', 'user']);
+        $proposal->loadMissing(['customer', 'items', 'publicToken', 'user']);
         Mail::to($proposal->user->email)->send(new ProposalApprovedMail($proposal));
     }
 

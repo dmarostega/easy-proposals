@@ -30,8 +30,28 @@ class Proposal extends Model
         ];
     }
 
-    public function user(): BelongsTo { return $this->belongsTo(User::class); }
-    public function customer(): BelongsTo { return $this->belongsTo(Customer::class); }
-    public function items(): HasMany { return $this->hasMany(ProposalItem::class); }
-    public function publicToken(): HasOne { return $this->hasOne(ProposalPublicToken::class); }
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    public function customer(): BelongsTo
+    {
+        return $this->belongsTo(Customer::class);
+    }
+
+    public function items(): HasMany
+    {
+        return $this->hasMany(ProposalItem::class);
+    }
+
+    public function events(): HasMany
+    {
+        return $this->hasMany(ProposalEvent::class)->latest('occurred_at');
+    }
+
+    public function publicToken(): HasOne
+    {
+        return $this->hasOne(ProposalPublicToken::class);
+    }
 }

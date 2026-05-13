@@ -16,6 +16,7 @@ class ProposalService
     public function __construct(
         private readonly PlanLimitService $limits,
         private readonly ProposalCalculator $calculator,
+        private readonly ProposalEventService $events,
     ) {}
 
     public function create(User $user, array $data): Proposal
@@ -30,6 +31,7 @@ class ProposalService
 
             $this->syncItems($proposal, $data['items']);
             $this->ensurePublicToken($proposal);
+            $this->events->record($proposal, 'created', 'Proposta criada.', $user);
 
             return $proposal->load(['customer', 'items', 'publicToken']);
         });
@@ -49,6 +51,7 @@ class ProposalService
             $proposal->items()->delete();
             $this->syncItems($proposal, $data['items']);
             $this->ensurePublicToken($proposal);
+            $this->events->record($proposal, 'updated', 'Proposta atualizada.', $proposal->user);
 
             return $proposal->load(['customer', 'items', 'publicToken']);
         });
@@ -64,6 +67,7 @@ class ProposalService
             'status' => ProposalStatus::Sent,
             'sent_at' => now(),
         ]);
+        $this->events->record($proposal, 'sent', 'Proposta enviada ao cliente.', $proposal->user);
 
         return $proposal->load(['customer', 'items', 'publicToken', 'user']);
     }
