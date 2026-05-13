@@ -12,9 +12,9 @@
 
 ## Fase 2 — Experiência do usuário
 
-- [ ] Telas Inertia completas para CRUDs autenticados.
+- [x] Telas Inertia completas para CRUDs autenticados.
 - [x] Upload de logo com validação por plano.
-- [ ] Editor visual de proposta e pré-visualização.
+- [x] Editor visual de proposta e pré-visualização.
 - [x] E-mails transacionais para envio e aprovação.
 
 ## Fase 3 — Documentos e automações
