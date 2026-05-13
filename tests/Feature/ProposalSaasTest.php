@@ -283,6 +283,66 @@ class ProposalSaasTest extends TestCase
         $this->assertStringContainsString('/propostas?proposal='.$proposal->id, $html);
     }
 
+    public function test_customer_and_proposal_lists_can_be_filtered_and_paginated(): void
+    {
+        $user = User::factory()->create(['plan_id' => Plan::factory()->unlimited()->create()->id]);
+        $acme = Customer::factory()->create(['user_id' => $user->id, 'name' => 'Acme Comercial']);
+        $beta = Customer::factory()->create(['user_id' => $user->id, 'name' => 'Beta Studio']);
+        Customer::factory()->count(3)->create(['user_id' => $user->id]);
+        Proposal::factory()->create([
+            'user_id' => $user->id,
+            'customer_id' => $acme->id,
+            'title' => 'Portal Acme',
+            'status' => ProposalStatus::Approved,
+        ]);
+        Proposal::factory()->create([
+            'user_id' => $user->id,
+            'customer_id' => $beta->id,
+            'title' => 'Contrato Beta',
+            'status' => ProposalStatus::Draft,
+        ]);
+
+        $this->actingAs($user)
+            ->getJson(route('clientes.index', ['q' => 'Acme', 'per_page' => 1]))
+            ->assertOk()
+            ->assertJsonPath('total', 1)
+            ->assertJsonPath('data.0.name', 'Acme Comercial');
+
+        $this->actingAs($user)
+            ->getJson(route('propostas.index', ['status' => ProposalStatus::Approved->value, 'per_page' => 1]))
+            ->assertOk()
+            ->assertJsonPath('total', 1)
+            ->assertJsonPath('data.0.title', 'Portal Acme')
+            ->assertJsonPath('data.0.status', ProposalStatus::Approved->value);
+    }
+
+    public function test_dashboard_stats_can_be_filtered_by_created_date(): void
+    {
+        $user = User::factory()->create(['plan_id' => Plan::factory()->unlimited()->create()->id]);
+        $customer = Customer::factory()->create(['user_id' => $user->id]);
+        Proposal::factory()->create([
+            'user_id' => $user->id,
+            'customer_id' => $customer->id,
+            'status' => ProposalStatus::Approved,
+            'total' => 250,
+            'created_at' => now(),
+        ]);
+        Proposal::factory()->create([
+            'user_id' => $user->id,
+            'customer_id' => $customer->id,
+            'status' => ProposalStatus::Approved,
+            'total' => 900,
+            'created_at' => now()->subMonths(2),
+        ]);
+
+        $this->actingAs($user)
+            ->getJson(route('dashboard', ['from' => now()->toDateString(), 'to' => now()->toDateString()]))
+            ->assertOk()
+            ->assertJsonPath('created_in_period', 1)
+            ->assertJsonPath('approved_in_period', 1)
+            ->assertJsonPath('approved_total_in_period', 250);
+    }
+
     public function test_owner_is_notified_when_customer_rejects_public_proposal_once(): void
     {
         Mail::fake();

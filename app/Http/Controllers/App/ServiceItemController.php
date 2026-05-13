@@ -15,7 +15,22 @@ class ServiceItemController extends Controller
             return app(AppPageController::class)($request);
         }
 
-        return response()->json($request->user()->serviceItems()->latest()->paginate());
+        $query = $request->user()->serviceItems();
+
+        if ($search = $request->string('q')->trim()->toString()) {
+            $query->where(function ($query) use ($search): void {
+                $query->where('name', 'like', "%{$search}%")
+                    ->orWhere('description', 'like', "%{$search}%");
+            });
+        }
+
+        if ($request->filled('active')) {
+            $query->where('is_active', $request->boolean('active'));
+        }
+
+        $perPage = min(max($request->integer('per_page', 10), 1), 50);
+
+        return response()->json($query->latest()->paginate($perPage)->withQueryString());
     }
 
     public function store(ServiceItemRequest $request)

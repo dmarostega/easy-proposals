@@ -4,12 +4,32 @@ import axios, { type AxiosResponse } from 'axios';
 
 type RecordData = Record<string, any>;
 
+type PaginationMeta = {
+  current_page: number;
+  last_page: number;
+  from: number | null;
+  to: number | null;
+  total: number;
+};
+
 const money = (value: number | string | null | undefined) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value ?? 0));
 
 const field = (data: RecordData, name: string, fallback: any = '') => data[name] ?? fallback;
 
-const formatStatLabel = (key: string | number) => String(key).replace(/_/g, ' ').toUpperCase();
+const statLabels: Record<string, string> = {
+  created_in_period: 'Propostas no período',
+  approved_in_period: 'Aprovadas no período',
+  pending_in_period: 'Pendentes no período',
+  approved_total_in_period: 'Total aprovado no período',
+  plan_limit: 'Limite do plano',
+  users_by_plan: 'Usuários por plano',
+  proposals_created: 'Propostas criadas',
+  proposals_approved: 'Propostas aprovadas',
+  approved_revenue: 'Receita aprovada',
+};
+
+const formatStatLabel = (key: string | number) => statLabels[String(key)] ?? String(key).replace(/_/g, ' ').toUpperCase();
 
 const formatStatValue = (value: any, key?: string | number) => {
   if (value === null || value === undefined || value === '') {
@@ -53,6 +73,20 @@ const settingInputType = (key: string | number) => String(key).includes('color')
 
 const jsonHeaders = { Accept: 'application/json' };
 const finalProposalStatuses = ['aprovada', 'recusada', 'expirada'];
+const proposalStatuses = ['rascunho', 'enviada', 'visualizada', 'aprovada', 'recusada', 'expirada'];
+const defaultPagination = (): PaginationMeta => ({ current_page: 1, last_page: 1, from: null, to: null, total: 0 });
+
+const queryParams = (filters: RecordData, page = 1) => {
+  const params: RecordData = { page };
+
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value !== '' && value !== null && value !== undefined) {
+      params[key] = value;
+    }
+  });
+
+  return params;
+};
 
 const itemsFromResponse = (payload: RecordData | RecordData[]) => Array.isArray(payload) ? payload : (payload.data ?? []);
 
@@ -71,7 +105,41 @@ const loadPaginated = async (url: string) => {
   return items;
 };
 
+const loadPage = async (url: string, filters: RecordData, page = 1) => {
+  const response: AxiosResponse<RecordData> = await axios.get(url, {
+    headers: jsonHeaders,
+    params: queryParams(filters, page),
+  });
+  const payload = response.data;
+
+  return {
+    items: payload.data ?? [],
+    pagination: {
+      current_page: payload.current_page ?? 1,
+      last_page: payload.last_page ?? 1,
+      from: payload.from ?? null,
+      to: payload.to ?? null,
+      total: payload.total ?? 0,
+    },
+  };
+};
+
 const isFinalProposal = (proposal: RecordData) => finalProposalStatuses.includes(proposal.status);
+const statusLabel = (status: string | null | undefined) => status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Sem status';
+const proposalStatusClass = (status: string | null | undefined) => ({
+  rascunho: 'border-slate-200 bg-slate-50 text-slate-700',
+  enviada: 'border-blue-200 bg-blue-50 text-blue-700',
+  visualizada: 'border-amber-200 bg-amber-50 text-amber-700',
+  aprovada: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  recusada: 'border-rose-200 bg-rose-50 text-rose-700',
+  expirada: 'border-zinc-200 bg-zinc-100 text-zinc-600',
+}[String(status)] ?? 'border-slate-200 bg-slate-50 text-slate-700');
+
+const paginationSummary = (pagination: PaginationMeta) => {
+  if (! pagination.total) return 'Nenhum registro encontrado';
+
+  return `Mostrando ${pagination.from ?? 0}-${pagination.to ?? 0} de ${pagination.total}`;
+};
 
 export default defineComponent({
   setup() {
@@ -98,11 +166,22 @@ export default defineComponent({
 
     const stats = ref<RecordData>({});
     const customers = ref<RecordData[]>([]);
+    const customerOptions = ref<RecordData[]>([]);
     const services = ref<RecordData[]>([]);
     const proposals = ref<RecordData[]>([]);
     const plans = ref<RecordData[]>([]);
     const users = ref<RecordData[]>([]);
     const settings = ref<RecordData>({});
+    const pagination = reactive<Record<string, PaginationMeta>>({
+      customers: defaultPagination(),
+      services: defaultPagination(),
+      proposals: defaultPagination(),
+    });
+    const dashboardFilters = reactive<RecordData>({ from: '', to: '' });
+    const customerFilters = reactive<RecordData>({ q: '', per_page: 10 });
+    const serviceFilters = reactive<RecordData>({ q: '', active: '', per_page: 10 });
+    const proposalFilters = reactive<RecordData>({ q: '', status: '', customer_id: '', per_page: 10 });
+    const customerSelectQuery = ref('');
 
     const customerForm = reactive<RecordData>({ id: null, name: '', email: '', phone: '', document: '', address: '', notes: '' });
     const serviceForm = reactive<RecordData>({ id: null, name: '', description: '', unit_price: 0, is_active: true });
@@ -140,7 +219,19 @@ export default defineComponent({
 
     const proposalSubtotal = computed(() => proposalForm.items.reduce((total: number, item: RecordData) => total + Number(item.quantity || 0) * Number(item.unit_price || 0), 0));
     const proposalTotal = computed(() => Math.max(0, proposalSubtotal.value - Number(proposalForm.discount || 0)));
-    const currentProposalCustomer = computed(() => customers.value.find((customer) => customer.id == proposalForm.customer_id));
+    const currentProposalCustomer = computed(() => customerOptions.value.find((customer) => customer.id == proposalForm.customer_id));
+    const filteredCustomerOptions = computed(() => {
+      const search = customerSelectQuery.value.trim().toLowerCase();
+
+      if (! search) return customerOptions.value;
+
+      return customerOptions.value.filter((customer) =>
+        customer.id == proposalForm.customer_id ||
+        [customer.name, customer.email, customer.phone, customer.document]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(search)),
+      );
+    });
     const savedBrandName = computed(() => user.value.business_name || user.value.name || 'Sua marca');
     const profileBrandName = computed(() => profileForm.business_name || user.value.name || 'Sua marca');
 
@@ -155,19 +246,62 @@ export default defineComponent({
       message.value = '';
     };
 
+    const loadDashboard = async () => {
+      const response = await axios.get('/dashboard', { headers: jsonHeaders, params: dashboardFilters });
+      stats.value = response.data;
+    };
+
+    const loadCustomersPage = async (page = 1) => {
+      const response = await loadPage('/clientes', customerFilters, page);
+      customers.value = response.items;
+      Object.assign(pagination.customers, response.pagination);
+    };
+
+    const loadServicesPage = async (page = 1) => {
+      const response = await loadPage('/servicos', serviceFilters, page);
+      services.value = response.items;
+      Object.assign(pagination.services, response.pagination);
+    };
+
+    const loadProposalsPage = async (page = 1) => {
+      const response = await loadPage('/propostas', proposalFilters, page);
+      proposals.value = response.items;
+      Object.assign(pagination.proposals, response.pagination);
+    };
+
+    const goToPage = async (resource: 'customers' | 'services' | 'proposals', page: number) => {
+      if (page < 1 || page > pagination[resource].last_page) return;
+
+      loading.value = true;
+      try {
+        if (resource === 'customers') await loadCustomersPage(page);
+        if (resource === 'services') await loadServicesPage(page);
+        if (resource === 'proposals') await loadProposalsPage(page);
+      } catch (exception) {
+        setError(exception);
+      } finally {
+        loading.value = false;
+      }
+    };
+
     const load = async () => {
       loading.value = true;
       try {
-        const [dashboardResponse, allCustomers, allServices, allProposals] = await Promise.all([
-          axios.get('/dashboard', { headers: jsonHeaders }),
+        const [dashboardResponse, customersResponse, servicesResponse, proposalsResponse, allCustomerOptions] = await Promise.all([
+          axios.get('/dashboard', { headers: jsonHeaders, params: dashboardFilters }),
+          loadPage('/clientes', customerFilters, pagination.customers.current_page),
+          loadPage('/servicos', serviceFilters, pagination.services.current_page),
+          loadPage('/propostas', proposalFilters, pagination.proposals.current_page),
           loadPaginated('/clientes'),
-          loadPaginated('/servicos'),
-          loadPaginated('/propostas'),
         ]);
         stats.value = dashboardResponse.data;
-        customers.value = allCustomers;
-        services.value = allServices;
-        proposals.value = allProposals;
+        customers.value = customersResponse.items;
+        services.value = servicesResponse.items;
+        proposals.value = proposalsResponse.items;
+        customerOptions.value = allCustomerOptions;
+        Object.assign(pagination.customers, customersResponse.pagination);
+        Object.assign(pagination.services, servicesResponse.pagination);
+        Object.assign(pagination.proposals, proposalsResponse.pagination);
 
         if (requestedProposalId && ! openedRequestedProposal) {
           openedRequestedProposal = true;
@@ -375,10 +509,10 @@ export default defineComponent({
     onMounted(load);
 
     return {
-      active, currentProposalCustomer, customerForm, customers, destroy, editCustomer, editPlan, editProposal, editService, error, field, formatDate, formatDateTime, formatStatLabel, formatStatValue, isAdmin, isFinalProposal, loading, logoPreviewUrl, logout, message, money,
-      planForm, plans, proposalForm, proposalSubtotal, proposalTotal, proposals, resetProposal, saveCustomer,
+      active, currentProposalCustomer, customerFilters, customerForm, customerOptions, customerSelectQuery, customers, dashboardFilters, destroy, editCustomer, editPlan, editProposal, editService, error, field, filteredCustomerOptions, formatDate, formatDateTime, formatStatLabel, formatStatValue, goToPage, isAdmin, isFinalProposal, loadCustomersPage, loadDashboard, loadProposalsPage, loadServicesPage, loading, logoPreviewUrl, logout, message, money,
+      pagination, paginationSummary, planForm, plans, proposalFilters, proposalForm, proposalStatusClass, proposalStatuses, proposalSubtotal, proposalTotal, proposals, resetProposal, saveCustomer,
       profileBrandName, savePlan, savedBrandName, saveProfile, saveProposal, saveService, saveSettings, saveUser, selectLogo, sendProposal, serviceForm, services,
-      settingInputType, settingLabel, settings, stats, user, userForm, users, profileForm, resetCustomer, resetService,
+      serviceFilters, settingInputType, settingLabel, settings, stats, statusLabel, user, userForm, users, profileForm, resetCustomer, resetService,
     };
   },
 });
@@ -422,11 +556,24 @@ export default defineComponent({
           <div v-if="error" class="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-rose-700">{{ error }}</div>
           <div v-if="loading" class="rounded-2xl bg-white p-4 shadow-sm">Carregando dados...</div>
 
-          <section v-if="active === 'dashboard'" class="grid gap-4 md:grid-cols-3 xl:grid-cols-5">
-            <article v-for="(value, key) in stats" :key="key" class="rounded-3xl bg-white p-6 shadow-sm">
-              <p class="text-sm uppercase tracking-wide text-slate-500">{{ formatStatLabel(key) }}</p>
-              <strong class="mt-3 block break-words text-2xl">{{ formatStatValue(value, key) }}</strong>
-            </article>
+          <section v-if="active === 'dashboard'" class="grid gap-4">
+            <form class="grid gap-3 rounded-3xl bg-white p-5 shadow-sm md:grid-cols-[1fr_1fr_auto]" @submit.prevent="loadDashboard">
+              <label class="grid gap-1 text-sm">
+                <span class="font-medium text-slate-700">De</span>
+                <input v-model="dashboardFilters.from" type="date" class="rounded-xl border p-3">
+              </label>
+              <label class="grid gap-1 text-sm">
+                <span class="font-medium text-slate-700">Até</span>
+                <input v-model="dashboardFilters.to" type="date" class="rounded-xl border p-3">
+              </label>
+              <button class="self-end rounded-xl bg-slate-950 px-5 py-3 font-semibold text-white">Filtrar</button>
+            </form>
+            <div class="grid gap-4 md:grid-cols-3 xl:grid-cols-5">
+              <article v-for="(value, key) in stats" :key="key" class="rounded-3xl bg-white p-6 shadow-sm">
+                <p class="text-sm uppercase tracking-wide text-slate-500">{{ formatStatLabel(key) }}</p>
+                <strong class="mt-3 block break-words text-2xl">{{ formatStatValue(value, key) }}</strong>
+              </article>
+            </div>
           </section>
 
           <section v-if="active === 'customers'" class="grid gap-6 lg:grid-cols-[1fr_2fr]">
@@ -440,10 +587,23 @@ export default defineComponent({
               <button class="mt-4 rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white">{{ customerForm.id ? 'Atualizar cliente' : 'Salvar cliente' }}</button>
             </form>
             <div class="rounded-3xl bg-white p-6 shadow-sm">
-              <h2 class="text-xl font-bold">Clientes cadastrados</h2>
+              <div class="flex flex-wrap items-center justify-between gap-3">
+                <h2 class="text-xl font-bold">Clientes cadastrados</h2>
+                <form class="flex flex-wrap gap-2" @submit.prevent="loadCustomersPage(1)">
+                  <input v-model="customerFilters.q" class="rounded-xl border p-3 text-sm" placeholder="Buscar cliente">
+                  <button class="rounded-xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white">Filtrar</button>
+                </form>
+              </div>
+              <p class="mt-3 text-sm text-slate-500">{{ paginationSummary(pagination.customers) }}</p>
+              <p v-if="!customers.length" class="mt-4 rounded-2xl border border-dashed p-4 text-sm text-slate-500">Nenhum cliente encontrado.</p>
               <div v-for="customer in customers" :key="customer.id" class="mt-4 flex items-center justify-between gap-4 rounded-2xl border p-4">
                 <div><strong>{{ customer.name }}</strong><p class="text-sm text-slate-500">{{ customer.email || customer.phone || 'Sem contato' }}</p></div>
                 <div class="flex gap-3 text-sm"><button class="text-blue-600" @click="editCustomer(customer)">Editar</button><button class="text-rose-600" @click="destroy('/clientes/' + customer.id)">Excluir</button></div>
+              </div>
+              <div class="mt-4 flex items-center justify-between gap-3 text-sm">
+                <button class="rounded-xl border px-4 py-2 disabled:opacity-40" :disabled="pagination.customers.current_page <= 1" @click="goToPage('customers', pagination.customers.current_page - 1)">Anterior</button>
+                <span>Página {{ pagination.customers.current_page }} de {{ pagination.customers.last_page }}</span>
+                <button class="rounded-xl border px-4 py-2 disabled:opacity-40" :disabled="pagination.customers.current_page >= pagination.customers.last_page" @click="goToPage('customers', pagination.customers.current_page + 1)">Próxima</button>
               </div>
             </div>
           </section>
@@ -458,10 +618,28 @@ export default defineComponent({
               <button class="mt-4 rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white">{{ serviceForm.id ? 'Atualizar serviço' : 'Salvar serviço' }}</button>
             </form>
             <div class="rounded-3xl bg-white p-6 shadow-sm">
-              <h2 class="text-xl font-bold">Catálogo</h2>
+              <div class="flex flex-wrap items-center justify-between gap-3">
+                <h2 class="text-xl font-bold">Catálogo</h2>
+                <form class="flex flex-wrap gap-2" @submit.prevent="loadServicesPage(1)">
+                  <input v-model="serviceFilters.q" class="rounded-xl border p-3 text-sm" placeholder="Buscar serviço">
+                  <select v-model="serviceFilters.active" class="rounded-xl border p-3 text-sm">
+                    <option value="">Todos</option>
+                    <option value="1">Ativos</option>
+                    <option value="0">Inativos</option>
+                  </select>
+                  <button class="rounded-xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white">Filtrar</button>
+                </form>
+              </div>
+              <p class="mt-3 text-sm text-slate-500">{{ paginationSummary(pagination.services) }}</p>
+              <p v-if="!services.length" class="mt-4 rounded-2xl border border-dashed p-4 text-sm text-slate-500">Nenhum serviço encontrado.</p>
               <div v-for="service in services" :key="service.id" class="mt-4 flex items-center justify-between gap-4 rounded-2xl border p-4">
                 <div><strong>{{ service.name }}</strong><p class="text-sm text-slate-500">{{ money(service.unit_price) }}</p></div>
                 <div class="flex gap-3 text-sm"><button class="text-blue-600" @click="editService(service)">Editar</button><button class="text-rose-600" @click="destroy('/servicos/' + service.id)">Excluir</button></div>
+              </div>
+              <div class="mt-4 flex items-center justify-between gap-3 text-sm">
+                <button class="rounded-xl border px-4 py-2 disabled:opacity-40" :disabled="pagination.services.current_page <= 1" @click="goToPage('services', pagination.services.current_page - 1)">Anterior</button>
+                <span>Página {{ pagination.services.current_page }} de {{ pagination.services.last_page }}</span>
+                <button class="rounded-xl border px-4 py-2 disabled:opacity-40" :disabled="pagination.services.current_page >= pagination.services.last_page" @click="goToPage('services', pagination.services.current_page + 1)">Próxima</button>
               </div>
             </div>
           </section>
@@ -469,7 +647,8 @@ export default defineComponent({
           <section v-if="active === 'proposals'" class="grid gap-6 xl:grid-cols-[1.1fr_.9fr]">
             <form class="rounded-3xl bg-white p-6 shadow-sm" @submit.prevent="saveProposal">
               <div class="flex items-center justify-between"><h2 class="text-xl font-bold">Editor visual de proposta</h2><button type="button" class="text-sm text-blue-600" @click="resetProposal">Nova</button></div>
-              <select v-model="proposalForm.customer_id" class="mt-4 w-full rounded-xl border p-3" required><option value="">Selecione um cliente</option><option v-for="customer in customers" :key="customer.id" :value="customer.id">{{ customer.name }}</option></select>
+              <input v-model="customerSelectQuery" class="mt-4 w-full rounded-xl border p-3" placeholder="Pesquisar cliente">
+              <select v-model="proposalForm.customer_id" class="mt-3 w-full rounded-xl border p-3" required><option value="">Selecione um cliente</option><option v-for="customer in filteredCustomerOptions" :key="customer.id" :value="customer.id">{{ customer.name }}</option></select>
               <input v-model="proposalForm.title" class="mt-3 w-full rounded-xl border p-3" placeholder="Título" required>
               <textarea v-model="proposalForm.description" class="mt-3 w-full rounded-xl border p-3" placeholder="Descrição"></textarea>
               <div class="mt-3 grid gap-3 md:grid-cols-2"><input v-model="proposalForm.valid_until" type="date" class="rounded-xl border p-3"><input v-model.number="proposalForm.discount" type="number" step="0.01" class="rounded-xl border p-3" placeholder="Desconto"></div>
@@ -527,10 +706,41 @@ export default defineComponent({
                 </div>
               </article>
               <article class="rounded-3xl bg-white p-6 shadow-sm">
-                <h2 class="text-xl font-bold">Propostas</h2>
-                <div v-for="proposal in proposals" :key="proposal.id" class="mt-4 rounded-2xl border p-4">
-                  <div class="flex justify-between gap-3"><div><strong>{{ proposal.title }}</strong><p class="text-sm text-slate-500">{{ proposal.customer?.name }} · {{ proposal.status }} · {{ money(proposal.total) }} · {{ proposal.events_count ?? 0 }} evento(s)</p></div><a v-if="!isFinalProposal(proposal)" class="text-blue-600" :href="'/propostas/' + proposal.id" @click.prevent="editProposal(proposal)">Editar</a><span v-else class="text-sm text-slate-400">Bloqueada</span></div>
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                  <h2 class="text-xl font-bold">Propostas</h2>
+                  <form class="flex flex-wrap gap-2" @submit.prevent="loadProposalsPage(1)">
+                    <input v-model="proposalFilters.q" class="rounded-xl border p-3 text-sm" placeholder="Buscar proposta">
+                    <select v-model="proposalFilters.status" class="rounded-xl border p-3 text-sm">
+                      <option value="">Todos os status</option>
+                      <option v-for="status in proposalStatuses" :key="status" :value="status">{{ statusLabel(status) }}</option>
+                    </select>
+                    <select v-model="proposalFilters.customer_id" class="rounded-xl border p-3 text-sm">
+                      <option value="">Todos os clientes</option>
+                      <option v-for="customer in customerOptions" :key="customer.id" :value="customer.id">{{ customer.name }}</option>
+                    </select>
+                    <button class="rounded-xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white">Filtrar</button>
+                  </form>
+                </div>
+                <p class="mt-3 text-sm text-slate-500">{{ paginationSummary(pagination.proposals) }}</p>
+                <p v-if="!proposals.length" class="mt-4 rounded-2xl border border-dashed p-4 text-sm text-slate-500">Nenhuma proposta encontrada.</p>
+                <div v-for="proposal in proposals" :key="proposal.id" class="mt-4 rounded-2xl border border-slate-200 p-4">
+                  <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div class="min-w-0">
+                      <div class="flex flex-wrap items-center gap-2">
+                        <strong class="break-words text-slate-950">{{ proposal.title }}</strong>
+                        <span :class="['rounded-full border px-2.5 py-1 text-xs font-semibold', proposalStatusClass(proposal.status)]">{{ statusLabel(proposal.status) }}</span>
+                      </div>
+                      <p class="mt-2 text-sm text-slate-500">{{ proposal.customer?.name || 'Sem cliente' }} · {{ money(proposal.total) }} · {{ proposal.events_count ?? 0 }} evento(s)</p>
+                    </div>
+                    <a v-if="!isFinalProposal(proposal)" class="rounded-xl border px-3 py-2 text-sm font-semibold text-blue-600" :href="'/propostas/' + proposal.id" @click.prevent="editProposal(proposal)">Editar</a>
+                    <span v-else class="rounded-xl bg-slate-100 px-3 py-2 text-sm text-slate-500">Bloqueada</span>
+                  </div>
                   <div class="mt-3 flex flex-wrap gap-3 text-sm"><a v-if="proposal.public_token" class="text-blue-600" :href="'/p/' + proposal.public_token.token" target="_blank">Link público</a><a v-if="user.plan?.allows_pdf" class="text-slate-700" :href="'/propostas/' + proposal.id + '/pdf'" target="_blank">PDF</a><a v-if="!isFinalProposal(proposal)" class="text-emerald-600" :href="'/propostas/' + proposal.id + '/enviar'" @click.prevent="sendProposal(proposal)">Enviar e-mail</a><a v-if="!isFinalProposal(proposal)" class="text-rose-600" :href="'/propostas/' + proposal.id" @click.prevent="destroy('/propostas/' + proposal.id)">Excluir</a></div>
+                </div>
+                <div class="mt-4 flex items-center justify-between gap-3 text-sm">
+                  <button class="rounded-xl border px-4 py-2 disabled:opacity-40" :disabled="pagination.proposals.current_page <= 1" @click="goToPage('proposals', pagination.proposals.current_page - 1)">Anterior</button>
+                  <span>Página {{ pagination.proposals.current_page }} de {{ pagination.proposals.last_page }}</span>
+                  <button class="rounded-xl border px-4 py-2 disabled:opacity-40" :disabled="pagination.proposals.current_page >= pagination.proposals.last_page" @click="goToPage('proposals', pagination.proposals.current_page + 1)">Próxima</button>
                 </div>
               </article>
             </div>
