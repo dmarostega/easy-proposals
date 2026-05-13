@@ -501,8 +501,8 @@ export default defineComponent({
               <article class="rounded-3xl bg-white p-6 shadow-sm">
                 <h2 class="text-xl font-bold">Propostas</h2>
                 <div v-for="proposal in proposals" :key="proposal.id" class="mt-4 rounded-2xl border p-4">
-                  <div class="flex justify-between gap-3"><div><strong>{{ proposal.title }}</strong><p class="text-sm text-slate-500">{{ proposal.customer?.name }} · {{ proposal.status }} · {{ money(proposal.total) }}</p></div><button class="text-blue-600" @click="editProposal(proposal)">Editar</button></div>
-                  <div class="mt-3 flex flex-wrap gap-3 text-sm"><a v-if="proposal.public_token" class="text-blue-600" :href="'/p/' + proposal.public_token.token" target="_blank">Link público</a><button class="text-emerald-600" @click="sendProposal(proposal)">Enviar e-mail</button><button class="text-rose-600" @click="destroy('/propostas/' + proposal.id)">Excluir</button></div>
+                  <div class="flex justify-between gap-3"><div><strong>{{ proposal.title }}</strong><p class="text-sm text-slate-500">{{ proposal.customer?.name }} · {{ proposal.status }} · {{ money(proposal.total) }}</p></div><a class="text-blue-600" :href="'/propostas/' + proposal.id" @click.prevent="editProposal(proposal)">Editar</a></div>
+                  <div class="mt-3 flex flex-wrap gap-3 text-sm"><a v-if="proposal.public_token" class="text-blue-600" :href="'/p/' + proposal.public_token.token" target="_blank">Link público</a><a class="text-emerald-600" :href="'/propostas/' + proposal.id + '/enviar'" @click.prevent="sendProposal(proposal)">Enviar e-mail</a><a class="text-rose-600" :href="'/propostas/' + proposal.id" @click.prevent="destroy('/propostas/' + proposal.id)">Excluir</a></div>
                 </div>
               </article>
             </div>
