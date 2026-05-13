@@ -7,6 +7,10 @@
     <p class="mt-2">Status: <strong>{{ $proposal->status->value }}</strong></p>
     <div class="mt-6 overflow-hidden rounded border"><table class="w-full text-left"><thead><tr class="bg-[var(--color-primary)]/10 text-[var(--color-secondary)]"><th class="p-3">Item</th><th>Qtd.</th><th>Unitário</th><th>Total</th></tr></thead><tbody>@foreach($proposal->items as $item)<tr class="border-t"><td class="p-3">{{ $item->description }}</td><td>{{ $item->quantity }}</td><td>R$ {{ $item->unit_price }}</td><td>R$ {{ $item->total }}</td></tr>@endforeach</tbody></table></div>
     <p class="mt-6 text-2xl font-bold">Total: R$ {{ $proposal->total }}</p>
-    <div class="mt-6 flex gap-3"><form method="post" action="{{ route('public.proposals.approve', $proposal->publicToken->token) }}">@csrf<button class="rounded bg-[var(--color-primary)] px-4 py-2 text-white">Aprovar</button></form><form method="post" action="{{ route('public.proposals.reject', $proposal->publicToken->token) }}">@csrf<button class="rounded bg-[var(--color-secondary)] px-4 py-2 text-white">Recusar</button></form></div>
+    @if(! in_array($proposal->status, [\App\Enums\ProposalStatus::Approved, \App\Enums\ProposalStatus::Rejected], true))
+        <div class="mt-6 flex gap-3"><form method="post" action="{{ route('public.proposals.approve', $proposal->publicToken->token) }}">@csrf<button class="rounded bg-[var(--color-primary)] px-4 py-2 text-white">Aprovar</button></form><form method="post" action="{{ route('public.proposals.reject', $proposal->publicToken->token) }}">@csrf<button class="rounded bg-[var(--color-secondary)] px-4 py-2 text-white">Recusar</button></form></div>
+    @else
+        <p class="mt-6 rounded bg-slate-50 p-3 text-slate-700">Esta proposta já foi {{ $proposal->status === \App\Enums\ProposalStatus::Approved ? 'aprovada' : 'recusada' }}.</p>
+    @endif
 </section>
 @endsection

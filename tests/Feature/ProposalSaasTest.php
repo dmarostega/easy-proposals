@@ -204,7 +204,28 @@ class ProposalSaasTest extends TestCase
         Mail::assertSent(ProposalSentMail::class, fn (ProposalSentMail $mail) => $mail->hasTo('cliente@example.com'));
 
         $this->post(route('public.proposals.approve', $proposal->publicToken->token))->assertRedirect();
+        $this->post(route('public.proposals.approve', $proposal->publicToken->token))->assertRedirect();
 
+        Mail::assertSent(ProposalApprovedMail::class, 1);
         Mail::assertSent(ProposalApprovedMail::class, fn (ProposalApprovedMail $mail) => $mail->hasTo($user->email));
+    }
+
+    public function test_public_proposal_actions_are_hidden_after_approval(): void
+    {
+        $user = User::factory()->create(['plan_id' => Plan::factory()->unlimited()->create()->id]);
+        $customer = Customer::factory()->create(['user_id' => $user->id]);
+        $proposal = app(ProposalService::class)->create($user, [
+            'customer_id' => $customer->id,
+            'title' => 'Landing page',
+            'items' => [['description' => 'Design', 'quantity' => 1, 'unit_price' => 500]],
+        ]);
+
+        $this->post(route('public.proposals.approve', $proposal->publicToken->token))->assertRedirect();
+
+        $this->get(route('public.proposals.show', $proposal->publicToken->token))
+            ->assertOk()
+            ->assertSee('Esta proposta já foi aprovada.')
+            ->assertDontSee('Aprovar')
+            ->assertDontSee('Recusar');
     }
 }

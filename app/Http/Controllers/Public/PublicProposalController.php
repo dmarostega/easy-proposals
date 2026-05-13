@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Public;
 
+use App\Enums\ProposalStatus;
 use App\Http\Controllers\Controller;
 use App\Services\ProposalNotificationService;
 use App\Services\PublicProposalService;
@@ -16,10 +17,18 @@ class PublicProposalController extends Controller
     public function approve(string $token, PublicProposalService $service, ProposalNotificationService $notifications)
     {
         $proposal = $service->findByToken($token);
-        $proposal = $service->approve($proposal);
-        $notifications->notifyOwnerAboutApproval($proposal);
+        $alreadyApproved = $proposal->status === ProposalStatus::Approved;
 
-        return redirect()->route('public.proposals.show', $token)->with('status', 'Proposta aprovada com sucesso.');
+        $proposal = $service->approve($proposal);
+
+        if (! $alreadyApproved) {
+            $notifications->notifyOwnerAboutApproval($proposal);
+        }
+
+        return redirect()->route('public.proposals.show', $token)->with(
+            'status',
+            $alreadyApproved ? 'Esta proposta já estava aprovada.' : 'Proposta aprovada com sucesso.'
+        );
     }
 
     public function reject(string $token, PublicProposalService $service)

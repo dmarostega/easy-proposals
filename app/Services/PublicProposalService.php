@@ -25,7 +25,10 @@ class PublicProposalService
     public function approve(Proposal $proposal): Proposal
     {
         return DB::transaction(function () use ($proposal): Proposal {
-            $proposal->update(['status' => ProposalStatus::Approved, 'approved_at' => now(), 'rejected_at' => null]);
+            if ($proposal->status !== ProposalStatus::Approved) {
+                $proposal->update(['status' => ProposalStatus::Approved, 'approved_at' => now(), 'rejected_at' => null]);
+            }
+
             return $proposal->fresh(['items', 'customer']);
         });
     }
