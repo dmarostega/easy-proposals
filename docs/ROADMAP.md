@@ -15,7 +15,7 @@
 - [ ] Telas Inertia completas para CRUDs autenticados.
 - [x] Upload de logo com validação por plano.
 - [ ] Editor visual de proposta e pré-visualização.
-- [ ] E-mails transacionais para envio e aprovação.
+- [x] E-mails transacionais para envio e aprovação.
 
 ## Fase 3 — Documentos e automações
 

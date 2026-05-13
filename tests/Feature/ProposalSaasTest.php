@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Enums\ProposalStatus;
 use App\Enums\UserRole;
+use App\Mail\ProposalApprovedMail;
+use App\Mail\ProposalSentMail;
 use App\Models\Customer;
 use App\Models\Plan;
 use App\Models\Proposal;
@@ -11,6 +13,7 @@ use App\Models\User;
 use App\Services\ProposalService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
@@ -52,8 +55,57 @@ class ProposalSaasTest extends TestCase
         ]);
     }
 
+    public function test_user_can_send_proposal_to_customer_by_email(): void
+    {
+        Mail::fake();
+
+        $user = User::factory()->create(['plan_id' => Plan::factory()->unlimited()->create()->id]);
+        $customer = Customer::factory()->create(['user_id' => $user->id, 'email' => 'cliente@example.com']);
+        $proposal = app(ProposalService::class)->create($user, [
+            'customer_id' => $customer->id,
+            'title' => 'Site institucional',
+            'items' => [['description' => 'Design', 'quantity' => 1, 'unit_price' => 800]],
+        ]);
+
+        $this->actingAs($user)
+            ->postJson(route('propostas.send', $proposal))
+            ->assertOk()
+            ->assertJsonPath('status', ProposalStatus::Sent->value);
+
+        $proposal->refresh();
+        $this->assertSame(ProposalStatus::Sent, $proposal->status);
+        $this->assertNotNull($proposal->sent_at);
+
+        Mail::assertSent(ProposalSentMail::class, function (ProposalSentMail $mail) use ($customer): bool {
+            return $mail->hasTo($customer->email);
+        });
+    }
+
+    public function test_proposal_send_requires_customer_email(): void
+    {
+        Mail::fake();
+
+        $user = User::factory()->create(['plan_id' => Plan::factory()->unlimited()->create()->id]);
+        $customer = Customer::factory()->create(['user_id' => $user->id, 'email' => null]);
+        $proposal = app(ProposalService::class)->create($user, [
+            'customer_id' => $customer->id,
+            'title' => 'Consultoria',
+            'items' => [['description' => 'Diagnóstico', 'quantity' => 1, 'unit_price' => 400]],
+        ]);
+
+        $this->actingAs($user)
+            ->postJson(route('propostas.send', $proposal))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('customer.email');
+
+        $this->assertSame(ProposalStatus::Draft, $proposal->fresh()->status);
+        Mail::assertNothingSent();
+    }
+
     public function test_customer_can_approve_public_proposal_link(): void
     {
+        Mail::fake();
+
         $user = User::factory()->create(['plan_id' => Plan::factory()->unlimited()->create()->id]);
         $customer = Customer::factory()->create(['user_id' => $user->id]);
         $proposal = app(ProposalService::class)->create($user, [
@@ -67,6 +119,10 @@ class ProposalSaasTest extends TestCase
         $proposal->refresh();
         $this->assertSame(ProposalStatus::Approved, $proposal->status);
         $this->assertNotNull($proposal->approved_at);
+
+        Mail::assertSent(ProposalApprovedMail::class, function (ProposalApprovedMail $mail) use ($user): bool {
+            return $mail->hasTo($user->email);
+        });
     }
 
     public function test_public_proposal_link_uses_owner_branding_for_guests(): void

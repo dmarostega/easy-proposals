@@ -9,9 +9,15 @@ use Illuminate\Support\Facades\DB;
 
 class PublicProposalService
 {
+    public function __construct(private readonly ProposalDeliveryService $deliveryService) {}
+
     public function findByToken(string $token): Proposal
     {
-        $publicToken = ProposalPublicToken::query()->where('token', $token)->with('proposal.items', 'proposal.customer', 'proposal.user.plan')->firstOrFail();
+        $publicToken = ProposalPublicToken::query()
+            ->where('token', $token)
+            ->with('proposal.items', 'proposal.customer', 'proposal.user.plan')
+            ->firstOrFail();
+
         $publicToken->update(['last_viewed_at' => now()]);
         $proposal = $publicToken->proposal;
 
@@ -24,17 +30,35 @@ class PublicProposalService
 
     public function approve(Proposal $proposal): Proposal
     {
-        return DB::transaction(function () use ($proposal): Proposal {
-            $proposal->update(['status' => ProposalStatus::Approved, 'approved_at' => now(), 'rejected_at' => null]);
-            return $proposal->fresh(['items', 'customer']);
+        $proposal = DB::transaction(function () use ($proposal): Proposal {
+            $proposal->update([
+                'status' => ProposalStatus::Approved,
+                'approved_at' => now(),
+                'rejected_at' => null,
+            ]);
+
+            return $proposal->fresh(['items', 'customer', 'user']);
         });
+
+        $this->deliveryService->notifyApproval($proposal);
+
+        return $proposal;
     }
 
     public function reject(Proposal $proposal): Proposal
     {
-        return DB::transaction(function () use ($proposal): Proposal {
-            $proposal->update(['status' => ProposalStatus::Rejected, 'rejected_at' => now(), 'approved_at' => null]);
-            return $proposal->fresh(['items', 'customer']);
+        $proposal = DB::transaction(function () use ($proposal): Proposal {
+            $proposal->update([
+                'status' => ProposalStatus::Rejected,
+                'rejected_at' => now(),
+                'approved_at' => null,
+            ]);
+
+            return $proposal->fresh(['items', 'customer', 'user']);
         });
+
+        $this->deliveryService->notifyRejection($proposal);
+
+        return $proposal;
     }
 }

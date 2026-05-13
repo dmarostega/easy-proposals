@@ -39,6 +39,7 @@ Route::middleware(['auth', 'active'])->group(function (): void {
     Route::apiResource('clientes', CustomerController::class)->parameters(['clientes' => 'customer']);
     Route::apiResource('servicos', ServiceItemController::class)->parameters(['servicos' => 'serviceItem']);
     Route::apiResource('propostas', ProposalController::class)->parameters(['propostas' => 'proposal'])->except(['update']);
+    Route::post('/propostas/{proposal}/enviar', [ProposalController::class, 'send'])->name('propostas.send');
     Route::get('/propostas/{proposal}/pdf', [ProposalController::class, 'pdf'])->name('propostas.pdf');
 });
 
