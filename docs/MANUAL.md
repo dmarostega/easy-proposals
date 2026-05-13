@@ -4,6 +4,14 @@
 
 O Proposta Fácil ajuda profissionais autônomos e pequenos negócios a criar propostas comerciais, controlar status e enviar um link público para o cliente aprovar ou recusar.
 
+## Como cadastrar novos usuários
+
+1. Acesse `/cadastro` ou clique em `Criar conta` no menu público ou na tela de login.
+2. Informe nome, e-mail, senha e confirmação de senha.
+3. Ao concluir o cadastro, o sistema cria o usuário ativo com role `user`, vincula o plano Gratuito quando ele existir e faz login automaticamente.
+
+Administradores não são criados por essa tela. O usuário admin inicial vem do seed do banco.
+
 ## Como cadastrar clientes
 
 1. Acesse a área autenticada.

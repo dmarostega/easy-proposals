@@ -62,6 +62,7 @@
             </form>
         @else
             <a href="{{ route('login') }}">Entrar</a>
+            <a href="{{ route('register') }}" class="font-medium text-[var(--color-primary)]">Criar conta</a>
         @endauth
     </nav>
 </header>
