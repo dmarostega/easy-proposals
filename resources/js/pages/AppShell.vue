@@ -83,6 +83,7 @@ export default defineComponent({
     const message = ref('');
     const error = ref('');
     const loading = ref(false);
+    const logoPreviewUrl = ref<string | null>(null);
 
     const stats = ref<RecordData>({});
     const customers = ref<RecordData[]>([]);
@@ -129,6 +130,8 @@ export default defineComponent({
     const proposalSubtotal = computed(() => proposalForm.items.reduce((total: number, item: RecordData) => total + Number(item.quantity || 0) * Number(item.unit_price || 0), 0));
     const proposalTotal = computed(() => Math.max(0, proposalSubtotal.value - Number(proposalForm.discount || 0)));
     const currentProposalCustomer = computed(() => customers.value.find((customer) => customer.id == proposalForm.customer_id));
+    const savedBrandName = computed(() => user.value.business_name || user.value.name || 'Sua marca');
+    const profileBrandName = computed(() => profileForm.business_name || user.value.name || 'Sua marca');
 
     const setMessage = (text: string) => {
       message.value = text;
@@ -323,6 +326,7 @@ export default defineComponent({
           secondary_color: response.data.secondary_color ?? '#0f172a',
           logo: null,
         });
+        logoPreviewUrl.value = null;
         setMessage('Perfil atualizado com sucesso.');
       } catch (exception) { setError(exception); }
     };
@@ -330,6 +334,7 @@ export default defineComponent({
     const selectLogo = (event: Event) => {
       const input = event.target as HTMLInputElement;
       profileForm.logo = input.files?.[0] ?? null;
+      logoPreviewUrl.value = profileForm.logo instanceof File ? URL.createObjectURL(profileForm.logo) : null;
     };
 
     const logout = () => {
@@ -354,9 +359,9 @@ export default defineComponent({
     onMounted(load);
 
     return {
-      active, currentProposalCustomer, customerForm, customers, destroy, editCustomer, editPlan, editProposal, editService, error, field, formatDate, formatStatLabel, formatStatValue, isAdmin, loading, logout, message, money,
+      active, currentProposalCustomer, customerForm, customers, destroy, editCustomer, editPlan, editProposal, editService, error, field, formatDate, formatStatLabel, formatStatValue, isAdmin, loading, logoPreviewUrl, logout, message, money,
       planForm, plans, proposalForm, proposalSubtotal, proposalTotal, proposals, resetProposal, saveCustomer,
-      savePlan, saveProfile, saveProposal, saveService, saveSettings, saveUser, selectLogo, sendProposal, serviceForm, services,
+      profileBrandName, savePlan, savedBrandName, saveProfile, saveProposal, saveService, saveSettings, saveUser, selectLogo, sendProposal, serviceForm, services,
       settingInputType, settingLabel, settings, stats, user, userForm, users, profileForm, resetCustomer, resetService,
     };
   },
@@ -462,21 +467,36 @@ export default defineComponent({
                 </div>
               </div>
               <textarea v-model="proposalForm.commercial_terms" class="mt-3 w-full rounded-xl border p-3" placeholder="Condições comerciais"></textarea>
-              <textarea v-model="proposalForm.notes" class="mt-3 w-full rounded-xl border p-3" placeholder="Observações internas ou detalhes adicionais"></textarea>
+              <textarea v-model="proposalForm.notes" class="mt-3 w-full rounded-xl border p-3" placeholder="Observações"></textarea>
               <button class="mt-4 rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white">{{ proposalForm.id ? 'Atualizar proposta' : 'Criar proposta' }}</button>
             </form>
 
             <div class="grid gap-6">
-              <article class="rounded-3xl bg-white p-6 shadow-sm">
-                <h2 class="text-xl font-bold">Pré-visualização</h2>
-                <p class="mt-4 text-sm text-slate-500">Cliente: {{ currentProposalCustomer?.name ?? 'Não selecionado' }}</p>
-                <p class="mt-1 text-sm text-slate-500">Validade: {{ formatDate(proposalForm.valid_until) }}</p>
-                <h3 class="mt-2 text-2xl font-black">{{ proposalForm.title || 'Título da proposta' }}</h3>
-                <p class="mt-2 text-slate-600">{{ proposalForm.description || 'Descrição da proposta aparecerá aqui.' }}</p>
-                <div class="mt-5 overflow-x-auto rounded-2xl border"><table class="w-full min-w-[520px] text-left text-sm"><thead class="bg-slate-100"><tr><th class="p-3">Item</th><th>Qtd.</th><th>Unitário</th><th>Total</th></tr></thead><tbody><tr v-for="item in proposalForm.items" class="border-t"><td class="p-3">{{ item.description || 'Item' }}</td><td>{{ item.quantity }}</td><td>{{ money(item.unit_price) }}</td><td>{{ money(Number(item.quantity || 0) * Number(item.unit_price || 0)) }}</td></tr></tbody></table></div>
-                <p class="mt-4 text-right text-sm">Subtotal: {{ money(proposalSubtotal) }}</p><p class="text-right text-sm">Desconto: {{ money(proposalForm.discount) }}</p><p class="text-right text-2xl font-black">Total: {{ money(proposalTotal) }}</p>
-                <div v-if="proposalForm.commercial_terms" class="mt-5 rounded-2xl bg-slate-50 p-4"><h4 class="font-semibold">Condições comerciais</h4><p class="mt-2 whitespace-pre-line text-sm text-slate-600">{{ proposalForm.commercial_terms }}</p></div>
-                <div v-if="proposalForm.notes" class="mt-3 rounded-2xl bg-slate-50 p-4"><h4 class="font-semibold">Observações</h4><p class="mt-2 whitespace-pre-line text-sm text-slate-600">{{ proposalForm.notes }}</p></div>
+              <article class="overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-slate-200">
+                <div class="px-6 py-5 text-white" :style="{ backgroundColor: user.secondary_color || '#0f172a' }">
+                  <p class="text-xs font-semibold uppercase tracking-wide text-white/70">Pré-visualização do link público</p>
+                  <h2 class="mt-2 text-2xl font-black">{{ proposalForm.title || 'Título da proposta' }}</h2>
+                  <p class="mt-2 text-sm text-white/80">{{ proposalForm.description || 'Descrição da proposta aparecerá aqui.' }}</p>
+                  <div class="mt-4 rounded-2xl bg-white/10 p-4 text-sm ring-1 ring-white/15">
+                    <p class="text-white/70">Cliente</p>
+                    <strong class="mt-1 block">{{ currentProposalCustomer?.name ?? 'Não selecionado' }}</strong>
+                    <p class="mt-3 text-white/70">Validade</p>
+                    <strong class="mt-1 block">{{ formatDate(proposalForm.valid_until) }}</strong>
+                  </div>
+                </div>
+                <div class="p-6">
+                  <div class="overflow-x-auto rounded-2xl border border-slate-200"><table class="w-full min-w-[520px] text-left text-sm"><thead class="bg-slate-50"><tr><th class="p-3">Item</th><th>Qtd.</th><th>Unitário</th><th>Total</th></tr></thead><tbody><tr v-for="item in proposalForm.items" class="border-t"><td class="p-3 font-medium">{{ item.description || 'Item' }}</td><td>{{ item.quantity }}</td><td>{{ money(item.unit_price) }}</td><td class="font-semibold">{{ money(Number(item.quantity || 0) * Number(item.unit_price || 0)) }}</td></tr></tbody></table></div>
+                  <div class="mt-4 rounded-2xl border border-slate-200 p-4">
+                    <p class="flex justify-between text-sm text-slate-600"><span>Subtotal</span><strong>{{ money(proposalSubtotal) }}</strong></p>
+                    <p class="mt-2 flex justify-between text-sm text-slate-600"><span>Desconto</span><strong>{{ money(proposalForm.discount) }}</strong></p>
+                    <p class="mt-3 border-t border-slate-200 pt-3 text-sm text-slate-500">Total da proposta</p>
+                    <strong class="mt-1 block text-2xl" :style="{ color: user.secondary_color || '#0f172a' }">{{ money(proposalTotal) }}</strong>
+                  </div>
+                  <div v-if="proposalForm.commercial_terms" class="mt-4 rounded-2xl bg-slate-50 p-4"><h3 class="font-semibold">Condições comerciais</h3><p class="mt-2 whitespace-pre-line text-sm text-slate-600">{{ proposalForm.commercial_terms }}</p></div>
+                  <div v-if="proposalForm.notes" class="mt-4 rounded-2xl bg-slate-50 p-4"><h3 class="font-semibold">Observações</h3><p class="mt-2 whitespace-pre-line text-sm text-slate-600">{{ proposalForm.notes }}</p></div>
+                  <div class="mt-4 rounded-2xl border border-slate-200 p-4"><p class="text-sm text-slate-500">Enviado por</p><strong class="mt-1 block" :style="{ color: user.secondary_color || '#0f172a' }">{{ savedBrandName }}</strong><p v-if="user.contact_details" class="mt-2 whitespace-pre-line text-sm text-slate-600">{{ user.contact_details }}</p></div>
+                  <button type="button" class="mt-4 w-full rounded-xl px-5 py-3 font-semibold text-white" :style="{ backgroundColor: user.primary_color || '#2563eb' }">Aprovar proposta</button>
+                </div>
               </article>
               <article class="rounded-3xl bg-white p-6 shadow-sm">
                 <h2 class="text-xl font-bold">Propostas</h2>
@@ -504,13 +524,40 @@ export default defineComponent({
               <p v-if="!user.plan?.allows_custom_logo" class="mt-2 text-sm text-amber-600">Seu plano atual não permite enviar logo customizada.</p>
               <button class="mt-4 rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white">Salvar perfil</button>
             </form>
-            <article class="rounded-3xl bg-white p-6 shadow-sm">
-              <p class="text-sm uppercase tracking-wide text-slate-500">Prévia da identidade</p>
-              <div class="mt-4 rounded-3xl p-6 text-white" :style="{ background: `linear-gradient(135deg, ${profileForm.primary_color}, ${profileForm.secondary_color})` }">
-                <strong class="text-2xl">{{ profileForm.business_name || user.name }}</strong>
-                <p class="mt-4 whitespace-pre-line text-sm text-white/90">{{ profileForm.contact_details || 'Dados de contato aparecerão aqui.' }}</p>
+            <article class="overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-slate-200">
+              <div class="flex items-center justify-between gap-4 p-5">
+                <div class="flex items-center gap-3">
+                  <img v-if="logoPreviewUrl && user.plan?.allows_custom_logo" :src="logoPreviewUrl" alt="Logo" class="h-10 max-w-32 rounded object-contain">
+                  <strong class="text-lg" :style="{ color: profileForm.primary_color }">{{ profileBrandName }}</strong>
+                </div>
+                <span class="text-xs font-semibold uppercase tracking-wide text-slate-400">Sem menu no link público</span>
               </div>
-              <p class="mt-4 whitespace-pre-line text-sm text-slate-500">{{ profileForm.default_footer_text || 'Rodapé padrão das propostas.' }}</p>
+              <div class="px-6 py-6 text-white" :style="{ backgroundColor: profileForm.secondary_color }">
+                <p class="text-xs font-semibold uppercase tracking-wide text-white/70">Prévia da proposta pública</p>
+                <h2 class="mt-2 text-2xl font-black">Proposta comercial</h2>
+                <p class="mt-2 text-sm text-white/80">As cores, nome da marca, contato e rodapé aparecem no link enviado ao cliente.</p>
+                <div class="mt-4 rounded-2xl bg-white/10 p-4 text-sm ring-1 ring-white/15">
+                  <p class="text-white/70">Cliente</p>
+                  <strong class="mt-1 block">Cliente exemplo</strong>
+                  <p class="mt-3 text-white/70">Validade</p>
+                  <strong class="mt-1 block">Sem validade definida</strong>
+                </div>
+              </div>
+              <div class="p-6">
+                <div class="rounded-2xl border border-slate-200 p-4">
+                  <p class="flex justify-between text-sm text-slate-600"><span>Subtotal</span><strong>R$ 1.000,00</strong></p>
+                  <p class="mt-2 flex justify-between text-sm text-slate-600"><span>Desconto</span><strong>R$ 0,00</strong></p>
+                  <p class="mt-3 border-t border-slate-200 pt-3 text-sm text-slate-500">Total da proposta</p>
+                  <strong class="mt-1 block text-2xl" :style="{ color: profileForm.secondary_color }">R$ 1.000,00</strong>
+                </div>
+                <button type="button" class="mt-4 w-full rounded-xl px-5 py-3 font-semibold text-white" :style="{ backgroundColor: profileForm.primary_color }">Aprovar proposta</button>
+                <div class="mt-4 rounded-2xl border border-slate-200 p-4">
+                  <p class="text-sm text-slate-500">Enviado por</p>
+                  <strong class="mt-1 block" :style="{ color: profileForm.secondary_color }">{{ profileBrandName }}</strong>
+                  <p class="mt-2 whitespace-pre-line text-sm text-slate-600">{{ profileForm.contact_details || 'Dados de contato aparecerão aqui.' }}</p>
+                </div>
+              </div>
+              <p class="border-t border-slate-200 p-5 text-sm text-slate-500">{{ profileForm.default_footer_text || 'Rodapé padrão das propostas.' }}</p>
             </article>
           </section>
 
