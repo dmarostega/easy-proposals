@@ -7,7 +7,7 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Queue\SerializesModels;
 
-class ProposalSentMail extends Mailable
+class ProposalRejectedMail extends Mailable
 {
     use Queueable;
     use SerializesModels;
@@ -17,10 +17,8 @@ class ProposalSentMail extends Mailable
     public function build(): self
     {
         return $this
-            ->subject('Nova proposta: '.$this->proposal->title)
-            ->markdown('emails.proposals.sent', [
-                'proposal' => $this->proposal,
-                'url' => route('public.proposals.show', $this->proposal->publicToken->token),
-            ]);
+            ->subject('Proposta recusada: '.$this->proposal->title)
+            ->view('mail.proposals.rejected')
+            ->with(['proposal' => $this->proposal]);
     }
 }
