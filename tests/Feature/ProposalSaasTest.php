@@ -12,6 +12,7 @@ use App\Models\Customer;
 use App\Models\Plan;
 use App\Models\Proposal;
 use App\Models\User;
+use App\Services\ProposalPdfService;
 use App\Services\ProposalService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -141,6 +142,34 @@ class ProposalSaasTest extends TestCase
             'proposal_id' => $proposal->id,
             'type' => 'pdf_downloaded',
         ]);
+    }
+
+    public function test_pdf_long_free_text_blocks_are_split_across_pages(): void
+    {
+        $user = User::factory()->create([
+            'plan_id' => Plan::factory()->unlimited()->create(['allows_pdf' => true])->id,
+            'contact_details' => collect(range(1, 80))
+                ->map(fn (int $line): string => "Contato linha {$line} com informacoes detalhadas")
+                ->implode("\n"),
+        ]);
+        $customer = Customer::factory()->create(['user_id' => $user->id]);
+        $proposal = app(ProposalService::class)->create($user, [
+            'customer_id' => $customer->id,
+            'title' => 'Projeto com texto longo',
+            'commercial_terms' => collect(range(1, 140))
+                ->map(fn (int $line): string => "Linha comercial {$line} com detalhes contratuais importantes")
+                ->implode("\n"),
+            'items' => [['description' => 'Design', 'quantity' => 1, 'unit_price' => 800]],
+        ]);
+
+        $pdf = app(ProposalPdfService::class)->render($proposal->fresh(['customer', 'items', 'user']));
+
+        $this->assertMatchesRegularExpression('/\/Count [2-9]\d*/', $pdf);
+        $this->assertStringContainsString('Linha comercial 140', $pdf);
+        preg_match_all('/1 0 0 1 \d+\.\d+ (-?\d+\.\d+) Tm/', $pdf, $matches);
+        $lowestTextPosition = min(array_map('floatval', $matches[1]));
+
+        $this->assertGreaterThanOrEqual(34, $lowestTextPosition);
     }
 
     public function test_proposal_send_requires_customer_email(): void

@@ -75,12 +75,12 @@ class ProposalPdfService
             }
 
             $lines = $this->wrap($body, 92);
-            $height = 34 + (count($lines) * 13);
-            $ensureSpace($height);
+            $ensureSpace(31);
             $this->text($commands, $label, self::MARGIN, $y, 11, 'F2', $dark);
             $y -= 18;
 
             foreach ($lines as $line) {
+                $ensureSpace(13);
                 $this->text($commands, $line, self::MARGIN, $y, 9, 'F1', $muted);
                 $y -= 13;
             }
