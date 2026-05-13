@@ -1,6 +1,6 @@
 <script lang="ts">
 import { computed, defineComponent, onMounted, reactive, ref } from 'vue';
-import axios from 'axios';
+import axios, { type AxiosResponse } from 'axios';
 
 type RecordData = Record<string, any>;
 
@@ -39,6 +39,24 @@ const settingLabel = (key: string | number) => String(key).replace(/_/g, ' ').re
 
 const settingInputType = (key: string | number) => String(key).includes('color') ? 'color' : 'text';
 
+const jsonHeaders = { Accept: 'application/json' };
+
+const itemsFromResponse = (payload: RecordData | RecordData[]) => Array.isArray(payload) ? payload : (payload.data ?? []);
+
+const loadPaginated = async (url: string) => {
+  const items: RecordData[] = [];
+  let nextUrl: string | null = url;
+
+  while (nextUrl) {
+    const requestUrl = nextUrl;
+    const response: AxiosResponse<RecordData | RecordData[]> = await axios.get(requestUrl, { headers: jsonHeaders });
+    const payload: RecordData | RecordData[] = response.data;
+    items.push(...itemsFromResponse(payload));
+    nextUrl = Array.isArray(payload) ? null : (payload.next_page_url ?? null);
+  }
+
+  return items;
+};
 
 export default defineComponent({
   setup() {
@@ -102,26 +120,26 @@ export default defineComponent({
     const load = async () => {
       loading.value = true;
       try {
-        const [dashboardResponse, customersResponse, servicesResponse, proposalsResponse] = await Promise.all([
-          axios.get('/dashboard', { headers: { Accept: 'application/json' } }),
-          axios.get('/clientes', { headers: { Accept: 'application/json' } }),
-          axios.get('/servicos', { headers: { Accept: 'application/json' } }),
-          axios.get('/propostas', { headers: { Accept: 'application/json' } }),
+        const [dashboardResponse, allCustomers, allServices, allProposals] = await Promise.all([
+          axios.get('/dashboard', { headers: jsonHeaders }),
+          loadPaginated('/clientes'),
+          loadPaginated('/servicos'),
+          loadPaginated('/propostas'),
         ]);
         stats.value = dashboardResponse.data;
-        customers.value = customersResponse.data.data ?? customersResponse.data;
-        services.value = servicesResponse.data.data ?? servicesResponse.data;
-        proposals.value = proposalsResponse.data.data ?? proposalsResponse.data;
+        customers.value = allCustomers;
+        services.value = allServices;
+        proposals.value = allProposals;
 
         if (isAdmin) {
-          const [plansResponse, usersResponse, settingsResponse, reportsResponse] = await Promise.all([
-            axios.get('/admin/planos', { headers: { Accept: 'application/json' } }),
-            axios.get('/admin/usuarios', { headers: { Accept: 'application/json' } }),
-            axios.get('/admin/configuracoes', { headers: { Accept: 'application/json' } }),
-            axios.get('/admin/relatorios', { headers: { Accept: 'application/json' } }),
+          const [allPlans, allUsers, settingsResponse, reportsResponse] = await Promise.all([
+            loadPaginated('/admin/planos'),
+            loadPaginated('/admin/usuarios'),
+            axios.get('/admin/configuracoes', { headers: jsonHeaders }),
+            axios.get('/admin/relatorios', { headers: jsonHeaders }),
           ]);
-          plans.value = plansResponse.data.data ?? plansResponse.data;
-          users.value = usersResponse.data.data ?? usersResponse.data;
+          plans.value = allPlans;
+          users.value = allUsers;
           settings.value = settingsResponse.data;
           stats.value = { ...stats.value, ...reportsResponse.data };
         }
@@ -137,7 +155,7 @@ export default defineComponent({
     };
 
     const editProposal = async (proposal: RecordData) => {
-      const response = await axios.get(`/propostas/${proposal.id}`, { headers: { Accept: 'application/json' } });
+      const response = await axios.get(`/propostas/${proposal.id}`, { headers: jsonHeaders });
       Object.assign(proposalForm, response.data, {
         customer_id: response.data.customer_id,
         valid_until: response.data.valid_until?.slice(0, 10) ?? '',
