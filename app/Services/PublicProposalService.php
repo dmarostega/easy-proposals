@@ -6,6 +6,7 @@ use App\Enums\ProposalStatus;
 use App\Models\Proposal;
 use App\Models\ProposalPublicToken;
 use Illuminate\Support\Facades\DB;
+use Throwable;
 
 class PublicProposalService
 {
@@ -27,7 +28,12 @@ class PublicProposalService
         if ($proposal->status === ProposalStatus::Sent) {
             $proposal->update(['status' => ProposalStatus::Viewed, 'viewed_at' => $proposal->viewed_at ?? now()]);
             $this->events->record($proposal, 'viewed', 'Cliente visualizou a proposta.');
-            $this->deliveryService->notifyView($proposal->fresh(['items', 'customer', 'user', 'publicToken']));
+
+            try {
+                $this->deliveryService->notifyView($proposal->fresh(['items', 'customer', 'user', 'publicToken']));
+            } catch (Throwable $exception) {
+                report($exception);
+            }
         }
 
         return $proposal->fresh(['items', 'customer', 'user.plan', 'publicToken']);

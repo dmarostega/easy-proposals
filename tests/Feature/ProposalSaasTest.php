@@ -18,6 +18,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
+use RuntimeException;
 use Tests\TestCase;
 
 class ProposalSaasTest extends TestCase
@@ -82,6 +83,32 @@ class ProposalSaasTest extends TestCase
             return $mail->hasTo($customer->email);
         });
         $this->assertDatabaseHas('proposal_events', [
+            'proposal_id' => $proposal->id,
+            'type' => 'sent',
+        ]);
+    }
+
+    public function test_proposal_is_not_marked_sent_when_customer_email_delivery_fails(): void
+    {
+        $user = User::factory()->create(['plan_id' => Plan::factory()->unlimited()->create()->id]);
+        $customer = Customer::factory()->create(['user_id' => $user->id, 'email' => 'cliente@example.com']);
+        $proposal = app(ProposalService::class)->create($user, [
+            'customer_id' => $customer->id,
+            'title' => 'Site institucional',
+            'items' => [['description' => 'Design', 'quantity' => 1, 'unit_price' => 800]],
+        ]);
+        $pendingMail = \Mockery::mock();
+        $pendingMail->shouldReceive('send')->once()->andThrow(new RuntimeException('SMTP indisponivel'));
+        Mail::shouldReceive('to')->once()->with($customer->email)->andReturn($pendingMail);
+
+        $this->actingAs($user)
+            ->postJson(route('propostas.send', $proposal))
+            ->assertStatus(500);
+
+        $proposal->refresh();
+        $this->assertSame(ProposalStatus::Draft, $proposal->status);
+        $this->assertNull($proposal->sent_at);
+        $this->assertDatabaseMissing('proposal_events', [
             'proposal_id' => $proposal->id,
             'type' => 'sent',
         ]);
@@ -186,6 +213,45 @@ class ProposalSaasTest extends TestCase
         Mail::assertSent(ProposalViewedMail::class, 1);
         Mail::assertSent(ProposalViewedMail::class, fn (ProposalViewedMail $mail) => $mail->hasTo($user->email));
         $this->assertSame(1, $proposal->events()->where('type', 'viewed')->count());
+    }
+
+    public function test_customer_can_view_public_proposal_when_owner_view_notification_fails(): void
+    {
+        $user = User::factory()->create(['plan_id' => Plan::factory()->unlimited()->create()->id]);
+        $customer = Customer::factory()->create(['user_id' => $user->id]);
+        $proposal = app(ProposalService::class)->create($user, [
+            'customer_id' => $customer->id,
+            'title' => 'Landing page',
+            'items' => [['description' => 'Design', 'quantity' => 1, 'unit_price' => 500]],
+        ]);
+        $proposal->update(['status' => ProposalStatus::Sent, 'sent_at' => now()]);
+        $pendingMail = \Mockery::mock();
+        $pendingMail->shouldReceive('send')->once()->andThrow(new RuntimeException('SMTP indisponivel'));
+        Mail::shouldReceive('to')->once()->with($user->email)->andReturn($pendingMail);
+
+        $this->get(route('public.proposals.show', $proposal->publicToken->token))
+            ->assertOk()
+            ->assertSee('Landing page');
+
+        $proposal->refresh();
+        $this->assertSame(ProposalStatus::Viewed, $proposal->status);
+        $this->assertNotNull($proposal->viewed_at);
+        $this->assertSame(1, $proposal->events()->where('type', 'viewed')->count());
+    }
+
+    public function test_viewed_notification_links_to_authenticated_proposal_page(): void
+    {
+        $user = User::factory()->create(['plan_id' => Plan::factory()->unlimited()->create()->id]);
+        $customer = Customer::factory()->create(['user_id' => $user->id]);
+        $proposal = app(ProposalService::class)->create($user, [
+            'customer_id' => $customer->id,
+            'title' => 'Landing page',
+            'items' => [['description' => 'Design', 'quantity' => 1, 'unit_price' => 500]],
+        ]);
+
+        $html = (new ProposalViewedMail($proposal->fresh(['customer', 'items', 'publicToken', 'user'])))->render();
+
+        $this->assertStringContainsString('/propostas?proposal='.$proposal->id, $html);
     }
 
     public function test_owner_is_notified_when_customer_rejects_public_proposal_once(): void

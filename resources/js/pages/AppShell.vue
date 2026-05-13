@@ -79,6 +79,8 @@ export default defineComponent({
     const page = mount?.dataset.page ?? 'app';
     const user = ref<RecordData>(JSON.parse(mount?.dataset.user ?? '{}'));
     const isAdmin = mount?.dataset.admin === 'true';
+    const requestedProposalId = new URLSearchParams(window.location.search).get('proposal');
+    let openedRequestedProposal = false;
     const initialSection = () => {
       if (page === 'admin' || window.location.pathname.startsWith('/admin')) return 'admin';
       if (window.location.pathname.startsWith('/clientes')) return 'customers';
@@ -166,6 +168,11 @@ export default defineComponent({
         customers.value = allCustomers;
         services.value = allServices;
         proposals.value = allProposals;
+
+        if (requestedProposalId && ! openedRequestedProposal) {
+          openedRequestedProposal = true;
+          await editProposal({ id: requestedProposalId });
+        }
 
         if (isAdmin) {
           const [allPlans, allUsers, settingsResponse, reportsResponse] = await Promise.all([

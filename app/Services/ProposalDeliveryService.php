@@ -24,7 +24,7 @@ class ProposalDeliveryService
             ]);
         }
 
-        $proposal = $this->proposalService->markAsSent($proposal);
+        $this->proposalService->ensurePublicToken($proposal);
 
         Mail::to($proposal->customer->email)->send(new ProposalSentMail($proposal->fresh([
             'customer',
@@ -33,7 +33,7 @@ class ProposalDeliveryService
             'user',
         ])));
 
-        return $proposal->fresh(['customer', 'items', 'publicToken']);
+        return $this->proposalService->markAsSent($proposal)->fresh(['customer', 'items', 'publicToken']);
     }
 
     public function notifyView(Proposal $proposal): void

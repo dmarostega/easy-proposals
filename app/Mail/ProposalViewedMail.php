@@ -20,7 +20,7 @@ class ProposalViewedMail extends Mailable
             ->subject('Proposta visualizada: '.$this->proposal->title)
             ->markdown('emails.proposals.viewed', [
                 'proposal' => $this->proposal,
-                'url' => route('propostas.show', $this->proposal),
+                'url' => route('propostas.index', ['proposal' => $this->proposal->id]),
             ]);
     }
 }
