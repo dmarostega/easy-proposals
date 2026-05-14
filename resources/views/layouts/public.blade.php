@@ -11,6 +11,7 @@
     <meta property="og:type" content="website">
     <meta property="og:url" content="{{ url()->current() }}">
     <meta name="twitter:card" content="summary_large_image">
+    @include('partials.favicons')
     <script type="application/ld+json">
         {!! json_encode([
             '@context' => 'https://schema.org',

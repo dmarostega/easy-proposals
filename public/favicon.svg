@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Proposta Facil">
+  <rect width="64" height="64" rx="14" fill="#2563eb"/>
+  <path d="M20 12h20l10 10v30H20z" fill="#fff"/>
+  <path d="M40 12v10h10z" fill="#bfdbfe"/>
+  <path d="M25 30h20M25 37h14" stroke="#0f172a" stroke-width="4" stroke-linecap="round"/>
+  <path d="M25 47l6 5 12-14" fill="none" stroke="#16a34a" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
