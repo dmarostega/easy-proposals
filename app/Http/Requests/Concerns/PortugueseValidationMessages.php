@@ -27,6 +27,7 @@ trait PortugueseValidationMessages
             'min.string' => 'O campo :attribute deve ter pelo menos :min caracteres.',
             'numeric' => 'O campo :attribute deve ser um número.',
             'password.letters' => 'O campo :attribute deve conter pelo menos uma letra.',
+            'password.min' => 'O campo :attribute deve ter pelo menos :min caracteres.',
             'password.mixed' => 'O campo :attribute deve conter letras maiúsculas e minúsculas.',
             'password.numbers' => 'O campo :attribute deve conter pelo menos um número.',
             'password.symbols' => 'O campo :attribute deve conter pelo menos um símbolo.',

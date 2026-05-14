@@ -65,4 +65,19 @@ class AuthValidationTest extends TestCase
             ->assertSee('O campo e-mail é obrigatório.')
             ->assertSee('O campo senha é obrigatório.');
     }
+
+    public function test_register_short_password_validation_error_is_visible_in_portuguese(): void
+    {
+        $this->followingRedirects()
+            ->from(route('register'))
+            ->post(route('register'), [
+                'name' => 'Cliente Teste',
+                'email' => 'cliente@example.com',
+                'password' => '123',
+                'password_confirmation' => '123',
+            ])
+            ->assertOk()
+            ->assertSee('O campo senha deve ter pelo menos 8 caracteres.')
+            ->assertDontSee('The senha field must be at least 8 characters.');
+    }
 }
