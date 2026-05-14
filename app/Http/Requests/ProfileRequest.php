@@ -2,11 +2,14 @@
 
 namespace App\Http\Requests;
 
+use App\Http\Requests\Concerns\PortugueseValidationMessages;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
 
 class ProfileRequest extends FormRequest
 {
+    use PortugueseValidationMessages;
+
     public function authorize(): bool
     {
         return $this->user() !== null;

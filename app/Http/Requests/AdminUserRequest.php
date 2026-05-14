@@ -3,11 +3,14 @@
 namespace App\Http\Requests;
 
 use App\Enums\UserRole;
+use App\Http\Requests\Concerns\PortugueseValidationMessages;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 class AdminUserRequest extends FormRequest
 {
+    use PortugueseValidationMessages;
+
     public function authorize(): bool
     {
         return $this->user()?->isAdmin() === true;

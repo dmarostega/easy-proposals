@@ -2,12 +2,15 @@
 
 namespace App\Http\Requests;
 
+use App\Http\Requests\Concerns\PortugueseValidationMessages;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 
 class AccountRequest extends FormRequest
 {
+    use PortugueseValidationMessages;
+
     public function authorize(): bool
     {
         return $this->user() !== null;

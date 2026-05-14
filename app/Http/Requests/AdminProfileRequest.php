@@ -2,10 +2,13 @@
 
 namespace App\Http\Requests;
 
+use App\Http\Requests\Concerns\PortugueseValidationMessages;
 use Illuminate\Foundation\Http\FormRequest;
 
 class AdminProfileRequest extends FormRequest
 {
+    use PortugueseValidationMessages;
+
     public function authorize(): bool
     {
         return $this->user()?->isAdmin() === true;
