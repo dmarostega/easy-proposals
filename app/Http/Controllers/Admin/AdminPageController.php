@@ -9,7 +9,7 @@ class AdminPageController extends Controller
 {
     public function __invoke(Request $request)
     {
-        return view('app.spa', [
+        return view('admin.spa', [
             'title' => 'Admin - Proposta Fácil',
             'page' => 'admin',
             'user' => $request->user()->load('plan'),

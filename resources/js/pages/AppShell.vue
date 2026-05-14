@@ -311,18 +311,6 @@ export default defineComponent({
           await editProposal({ id: requestedProposalId });
         }
 
-        if (isAdmin) {
-          const [allPlans, allUsers, settingsResponse, reportsResponse] = await Promise.all([
-            loadPaginated('/admin/planos'),
-            loadPaginated('/admin/usuarios'),
-            axios.get('/admin/configuracoes', { headers: jsonHeaders }),
-            axios.get('/admin/relatorios', { headers: jsonHeaders }),
-          ]);
-          plans.value = allPlans;
-          users.value = allUsers;
-          settings.value = settingsResponse.data;
-          stats.value = { ...stats.value, ...reportsResponse.data };
-        }
       } catch (exception) {
         setError(exception);
       } finally {
@@ -540,7 +528,7 @@ export default defineComponent({
           <button class="rounded-xl px-4 py-3 text-left hover:bg-white/10" @click="active = 'proposals'">Editor de propostas</button>
           <button class="rounded-xl px-4 py-3 text-left hover:bg-white/10" @click="active = 'customers'">Clientes</button>
           <button class="rounded-xl px-4 py-3 text-left hover:bg-white/10" @click="active = 'services'">Serviços</button>
-          <button v-if="isAdmin" class="rounded-xl px-4 py-3 text-left hover:bg-white/10" @click="active = 'admin'">Admin</button>
+          <a v-if="isAdmin" href="/admin" class="rounded-xl px-4 py-3 text-left hover:bg-white/10">Admin</a>
           <button class="rounded-xl px-4 py-3 text-left hover:bg-white/10" @click="active = 'profile'">Perfil da marca</button>
           <button class="rounded-xl px-4 py-3 text-left hover:bg-white/10" type="button" @click="logout">Sair</button>
         </nav>
@@ -556,7 +544,7 @@ export default defineComponent({
             <div class="flex gap-2 text-sm lg:hidden">
               <button class="rounded bg-slate-900 px-3 py-2 text-white" @click="active='dashboard'">Dashboard</button>
               <button class="rounded bg-slate-900 px-3 py-2 text-white" @click="active='proposals'">Propostas</button>
-              <button v-if="isAdmin" class="rounded bg-slate-900 px-3 py-2 text-white" @click="active='admin'">Admin</button>
+              <a v-if="isAdmin" href="/admin" class="rounded bg-slate-900 px-3 py-2 text-white">Admin</a>
               <button class="rounded bg-slate-900 px-3 py-2 text-white" @click="active='profile'">Perfil</button>
               <button class="rounded bg-rose-600 px-3 py-2 text-white" type="button" @click="logout">Sair</button>
             </div>

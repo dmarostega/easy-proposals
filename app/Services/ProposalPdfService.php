@@ -18,9 +18,15 @@ class ProposalPdfService
 
     public function download(Proposal $proposal): Response
     {
-        $pdf = $this->render($proposal);
+        $response = $this->downloadWithoutEvent($proposal);
         $this->events->record($proposal, 'pdf_downloaded', 'PDF da proposta gerado.', $proposal->user);
 
+        return $response;
+    }
+
+    public function downloadWithoutEvent(Proposal $proposal): Response
+    {
+        $pdf = $this->render($proposal);
         $filename = Str::slug($proposal->title ?: 'proposta').'-'.$proposal->id.'.pdf';
 
         return response($pdf, 200, [
