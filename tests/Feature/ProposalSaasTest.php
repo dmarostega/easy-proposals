@@ -16,6 +16,7 @@ use App\Services\ProposalPdfService;
 use App\Services\ProposalService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
@@ -445,6 +446,34 @@ class ProposalSaasTest extends TestCase
         $this->assertSame('#123456', $user->primary_color);
         $this->assertNotNull($user->logo_path);
         Storage::disk('public')->assertExists($user->logo_path);
+    }
+
+    public function test_user_can_update_account_password_and_profile_photo(): void
+    {
+        Storage::fake('public');
+        $user = User::factory()->create([
+            'name' => 'Nome antigo',
+            'email' => 'old@example.com',
+        ]);
+
+        $response = $this->actingAs($user)->post(route('account.update'), [
+            '_method' => 'PUT',
+            'name' => 'Nome atualizado',
+            'email' => 'new@example.com',
+            'current_password' => 'password',
+            'password' => 'new-password-123',
+            'password_confirmation' => 'new-password-123',
+            'profile_photo' => UploadedFile::fake()->image('profile.jpg', 320, 320),
+        ]);
+
+        $response->assertRedirect();
+        $user->refresh();
+
+        $this->assertSame('Nome atualizado', $user->name);
+        $this->assertSame('new@example.com', $user->email);
+        $this->assertTrue(Hash::check('new-password-123', $user->password));
+        $this->assertNotNull($user->profile_photo_path);
+        Storage::disk('public')->assertExists($user->profile_photo_path);
     }
 
     public function test_logo_upload_requires_plan_permission(): void

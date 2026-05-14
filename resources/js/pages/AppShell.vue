@@ -154,6 +154,7 @@ export default defineComponent({
       if (window.location.pathname.startsWith('/clientes')) return 'customers';
       if (window.location.pathname.startsWith('/servicos')) return 'services';
       if (window.location.pathname.startsWith('/propostas')) return 'proposals';
+      if (window.location.pathname.startsWith('/conta')) return 'account';
       if (window.location.pathname.startsWith('/perfil')) return 'profile';
 
       return 'dashboard';
@@ -163,6 +164,7 @@ export default defineComponent({
     const error = ref('');
     const loading = ref(false);
     const logoPreviewUrl = ref<string | null>(null);
+    const accountPhotoPreviewUrl = ref<string | null>(null);
 
     const stats = ref<RecordData>({});
     const customers = ref<RecordData[]>([]);
@@ -209,6 +211,14 @@ export default defineComponent({
       is_active: true,
     });
     const userForm = reactive<RecordData>({ id: null, name: '', email: '', plan_id: '', role: 'user', is_active: true });
+    const accountForm = reactive<RecordData>({
+      name: user.value.name ?? '',
+      email: user.value.email ?? '',
+      current_password: '',
+      password: '',
+      password_confirmation: '',
+      profile_photo: null,
+    });
     const profileForm = reactive<RecordData>({
       business_name: user.value.business_name ?? '',
       contact_details: user.value.contact_details ?? '',
@@ -235,6 +245,13 @@ export default defineComponent({
     });
     const savedBrandName = computed(() => user.value.business_name || user.value.name || 'Sua marca');
     const profileBrandName = computed(() => profileForm.business_name || user.value.name || 'Sua marca');
+    const accountPhotoUrl = computed(() => accountPhotoPreviewUrl.value || (user.value.profile_photo_path ? `/storage/${user.value.profile_photo_path}` : null));
+    const userInitials = computed(() => String(user.value.name || 'U')
+      .split(' ')
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part.charAt(0).toUpperCase())
+      .join('') || 'U');
 
     const setMessage = (text: string) => {
       message.value = text;
@@ -455,6 +472,38 @@ export default defineComponent({
       } catch (exception) { setError(exception); }
     };
 
+    const saveAccount = async () => {
+      try {
+        const payload = new FormData();
+        payload.append('_method', 'PUT');
+        payload.append('name', accountForm.name ?? '');
+        payload.append('email', accountForm.email ?? '');
+
+        if (accountForm.password) {
+          payload.append('current_password', accountForm.current_password ?? '');
+          payload.append('password', accountForm.password);
+          payload.append('password_confirmation', accountForm.password_confirmation ?? '');
+        }
+
+        if (accountForm.profile_photo instanceof File) {
+          payload.append('profile_photo', accountForm.profile_photo);
+        }
+
+        const response = await axios.post('/conta', payload, { headers: { Accept: 'application/json', 'Content-Type': 'multipart/form-data' } });
+        user.value = response.data;
+        Object.assign(accountForm, {
+          name: response.data.name ?? '',
+          email: response.data.email ?? '',
+          current_password: '',
+          password: '',
+          password_confirmation: '',
+          profile_photo: null,
+        });
+        accountPhotoPreviewUrl.value = null;
+        setMessage('Conta atualizada com sucesso.');
+      } catch (exception) { setError(exception); }
+    };
+
     const saveProfile = async () => {
       try {
         const payload = new FormData();
@@ -487,6 +536,12 @@ export default defineComponent({
       logoPreviewUrl.value = profileForm.logo instanceof File ? URL.createObjectURL(profileForm.logo) : null;
     };
 
+    const selectProfilePhoto = (event: Event) => {
+      const input = event.target as HTMLInputElement;
+      accountForm.profile_photo = input.files?.[0] ?? null;
+      accountPhotoPreviewUrl.value = accountForm.profile_photo instanceof File ? URL.createObjectURL(accountForm.profile_photo) : null;
+    };
+
     const logout = () => {
       const form = document.createElement('form');
       const csrfToken = document.querySelector<HTMLMetaElement>('meta[name=\"csrf-token\"]')?.content ?? '';
@@ -509,10 +564,10 @@ export default defineComponent({
     onMounted(load);
 
     return {
-      active, applyServiceToItem, currentProposalCustomer, customerFilters, customerForm, customerOptions, customerSelectQuery, customers, dashboardFilters, destroy, editCustomer, editPlan, editProposal, editService, error, field, filteredCustomerOptions, formatDate, formatDateTime, formatStatLabel, formatStatValue, goToPage, isAdmin, isFinalProposal, loadCustomersPage, loadDashboard, loadProposalsPage, loadServicesPage, loading, logoPreviewUrl, logout, message, money,
+      accountForm, accountPhotoUrl, active, applyServiceToItem, currentProposalCustomer, customerFilters, customerForm, customerOptions, customerSelectQuery, customers, dashboardFilters, destroy, editCustomer, editPlan, editProposal, editService, error, field, filteredCustomerOptions, formatDate, formatDateTime, formatStatLabel, formatStatValue, goToPage, isAdmin, isFinalProposal, loadCustomersPage, loadDashboard, loadProposalsPage, loadServicesPage, loading, logoPreviewUrl, logout, message, money,
       pagination, paginationSummary, planForm, plans, proposalFilters, proposalForm, proposalStatusClass, proposalStatuses, proposalSubtotal, proposalTotal, proposals, resetProposal, saveCustomer,
-      profileBrandName, savePlan, savedBrandName, saveProfile, saveProposal, saveService, saveSettings, saveUser, selectLogo, sendProposal, serviceForm, services,
-      serviceFilters, serviceOptions, settingInputType, settingLabel, settings, stats, statusLabel, user, userForm, users, profileForm, resetCustomer, resetService,
+      profileBrandName, saveAccount, savePlan, savedBrandName, saveProfile, saveProposal, saveService, saveSettings, saveUser, selectLogo, selectProfilePhoto, sendProposal, serviceForm, services,
+      serviceFilters, serviceOptions, settingInputType, settingLabel, settings, stats, statusLabel, user, userForm, users, profileForm, resetCustomer, resetService, userInitials,
     };
   },
 });
@@ -522,13 +577,21 @@ export default defineComponent({
     <div class="min-h-screen">
       <aside class="fixed inset-y-0 left-0 hidden w-72 flex-col bg-slate-950 p-6 text-white lg:flex">
         <a href="/dashboard" class="text-2xl font-black">Proposta Fácil</a>
-        <p class="mt-2 text-sm text-slate-300">{{ user.name }} · {{ user.plan?.name ?? 'Sem plano' }}</p>
+        <button class="mt-5 flex w-full items-center gap-3 rounded-2xl bg-white/5 p-3 text-left hover:bg-white/10" type="button" @click="active = 'account'">
+          <img v-if="accountPhotoUrl" :src="accountPhotoUrl" alt="Foto de perfil" class="h-12 w-12 rounded-full object-cover ring-2 ring-white/20">
+          <span v-else class="flex h-12 w-12 items-center justify-center rounded-full bg-blue-500 text-sm font-bold ring-2 ring-white/20">{{ userInitials }}</span>
+          <span class="min-w-0">
+            <strong class="block truncate text-sm">{{ user.name }}</strong>
+            <span class="block truncate text-xs text-slate-300">{{ user.plan?.name ?? 'Sem plano' }}</span>
+          </span>
+        </button>
         <nav class="mt-8 grid gap-2 text-sm">
           <button class="rounded-xl px-4 py-3 text-left hover:bg-white/10" @click="active = 'dashboard'">Dashboard</button>
           <button class="rounded-xl px-4 py-3 text-left hover:bg-white/10" @click="active = 'proposals'">Editor de propostas</button>
           <button class="rounded-xl px-4 py-3 text-left hover:bg-white/10" @click="active = 'customers'">Clientes</button>
           <button class="rounded-xl px-4 py-3 text-left hover:bg-white/10" @click="active = 'services'">Serviços</button>
           <a v-if="isAdmin" href="/admin" class="rounded-xl px-4 py-3 text-left hover:bg-white/10">Admin</a>
+          <button class="rounded-xl px-4 py-3 text-left hover:bg-white/10" @click="active = 'account'">Minha conta</button>
           <button class="rounded-xl px-4 py-3 text-left hover:bg-white/10" @click="active = 'profile'">Perfil da marca</button>
           <button class="rounded-xl px-4 py-3 text-left hover:bg-white/10" type="button" @click="logout">Sair</button>
         </nav>
@@ -545,6 +608,7 @@ export default defineComponent({
               <button class="rounded bg-slate-900 px-3 py-2 text-white" @click="active='dashboard'">Dashboard</button>
               <button class="rounded bg-slate-900 px-3 py-2 text-white" @click="active='proposals'">Propostas</button>
               <a v-if="isAdmin" href="/admin" class="rounded bg-slate-900 px-3 py-2 text-white">Admin</a>
+              <button class="rounded bg-slate-900 px-3 py-2 text-white" @click="active='account'">Conta</button>
               <button class="rounded bg-slate-900 px-3 py-2 text-white" @click="active='profile'">Perfil</button>
               <button class="rounded bg-rose-600 px-3 py-2 text-white" type="button" @click="logout">Sair</button>
             </div>
@@ -750,6 +814,45 @@ export default defineComponent({
             </div>
           </section>
 
+
+          <section v-if="active === 'account'" class="grid gap-6 lg:grid-cols-[.9fr_1.1fr]">
+            <form class="rounded-3xl bg-white p-6 shadow-sm" @submit.prevent="saveAccount">
+              <h2 class="text-xl font-bold">Minha conta</h2>
+              <p class="mt-1 text-sm text-slate-500">Atualize seus dados de acesso e sua foto de perfil.</p>
+              <div class="mt-5 flex items-center gap-4">
+                <img v-if="accountPhotoUrl" :src="accountPhotoUrl" alt="Foto de perfil" class="h-24 w-24 rounded-full object-cover ring-4 ring-slate-100">
+                <div v-else class="flex h-24 w-24 items-center justify-center rounded-full bg-slate-950 text-2xl font-bold text-white ring-4 ring-slate-100">{{ userInitials }}</div>
+                <label class="grid flex-1 gap-1 text-sm">
+                  <span>Foto de perfil</span>
+                  <input type="file" accept="image/*" class="rounded-xl border p-3" @change="selectProfilePhoto">
+                </label>
+              </div>
+              <input v-model="accountForm.name" class="mt-5 w-full rounded-xl border p-3" placeholder="Nome" required>
+              <input v-model="accountForm.email" type="email" class="mt-3 w-full rounded-xl border p-3" placeholder="E-mail" required>
+              <div class="mt-6 border-t border-slate-200 pt-5">
+                <h3 class="font-semibold">Alterar senha</h3>
+                <input v-model="accountForm.current_password" type="password" autocomplete="current-password" class="mt-3 w-full rounded-xl border p-3" placeholder="Senha atual">
+                <input v-model="accountForm.password" type="password" autocomplete="new-password" class="mt-3 w-full rounded-xl border p-3" placeholder="Nova senha">
+                <input v-model="accountForm.password_confirmation" type="password" autocomplete="new-password" class="mt-3 w-full rounded-xl border p-3" placeholder="Confirmar nova senha">
+              </div>
+              <button class="mt-4 rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white">Salvar conta</button>
+            </form>
+            <article class="rounded-3xl bg-slate-950 p-6 text-white shadow-sm">
+              <div class="flex items-center gap-4">
+                <img v-if="accountPhotoUrl" :src="accountPhotoUrl" alt="Foto de perfil" class="h-20 w-20 rounded-full object-cover ring-4 ring-white/10">
+                <div v-else class="flex h-20 w-20 items-center justify-center rounded-full bg-blue-500 text-xl font-bold ring-4 ring-white/10">{{ userInitials }}</div>
+                <div class="min-w-0">
+                  <p class="text-sm text-slate-300">Usuario logado</p>
+                  <h2 class="truncate text-2xl font-black">{{ accountForm.name || user.name }}</h2>
+                  <p class="truncate text-sm text-slate-300">{{ accountForm.email || user.email }}</p>
+                </div>
+              </div>
+              <div class="mt-6 grid gap-3 text-sm text-slate-300">
+                <p class="rounded-2xl bg-white/10 p-4">Plano: {{ user.plan?.name ?? 'Sem plano' }}</p>
+                <p class="rounded-2xl bg-white/10 p-4">E-mail: {{ accountForm.email || user.email }}</p>
+              </div>
+            </article>
+          </section>
 
           <section v-if="active === 'profile'" class="grid gap-6 lg:grid-cols-[1fr_.9fr]">
             <form class="rounded-3xl bg-white p-6 shadow-sm" @submit.prevent="saveProfile">
