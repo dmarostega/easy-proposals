@@ -19,11 +19,13 @@ class ProposalService
         private readonly ProposalEventService $events,
     ) {}
 
-    public function create(User $user, array $data): Proposal
+    public function create(User $user, array $data, ?User $actor = null, bool $enforceLimits = true): Proposal
     {
-        $this->limits->assertCanCreateProposal($user);
+        if ($enforceLimits) {
+            $this->limits->assertCanCreateProposal($user);
+        }
 
-        return DB::transaction(function () use ($user, $data): Proposal {
+        return DB::transaction(function () use ($user, $data, $actor): Proposal {
             $totals = $this->calculator->totals($data['items'], (float) ($data['discount'] ?? 0));
             $proposal = $user->proposals()->create(array_merge(Arr::only($data, [
                 'customer_id', 'title', 'description', 'valid_until', 'notes', 'commercial_terms',
@@ -31,17 +33,19 @@ class ProposalService
 
             $this->syncItems($proposal, $data['items']);
             $this->ensurePublicToken($proposal);
-            $this->events->record($proposal, 'created', 'Proposta criada.', $user);
+            $this->events->record($proposal, 'created', 'Proposta criada.', $actor ?? $user);
 
             return $proposal->load(['customer', 'items', 'publicToken']);
         });
     }
 
-    public function update(Proposal $proposal, array $data): Proposal
+    public function update(Proposal $proposal, array $data, ?User $actor = null, bool $allowFinal = false): Proposal
     {
-        $this->assertProposalIsEditable($proposal);
+        if (! $allowFinal) {
+            $this->assertProposalIsEditable($proposal);
+        }
 
-        return DB::transaction(function () use ($proposal, $data): Proposal {
+        return DB::transaction(function () use ($proposal, $data, $actor): Proposal {
             $totals = $this->calculator->totals($data['items'], (float) ($data['discount'] ?? 0));
 
             $proposal->update(array_merge(Arr::only($data, [
@@ -51,15 +55,17 @@ class ProposalService
             $proposal->items()->delete();
             $this->syncItems($proposal, $data['items']);
             $this->ensurePublicToken($proposal);
-            $this->events->record($proposal, 'updated', 'Proposta atualizada.', $proposal->user);
+            $this->events->record($proposal, 'updated', 'Proposta atualizada.', $actor ?? $proposal->user);
 
             return $proposal->load(['customer', 'items', 'publicToken']);
         });
     }
 
-    public function markAsSent(Proposal $proposal): Proposal
+    public function markAsSent(Proposal $proposal, ?User $actor = null, bool $allowFinal = false): Proposal
     {
-        $this->assertProposalIsEditable($proposal);
+        if (! $allowFinal) {
+            $this->assertProposalIsEditable($proposal);
+        }
 
         $this->ensurePublicToken($proposal);
 
@@ -67,7 +73,7 @@ class ProposalService
             'status' => ProposalStatus::Sent,
             'sent_at' => now(),
         ]);
-        $this->events->record($proposal, 'sent', 'Proposta enviada ao cliente.', $proposal->user);
+        $this->events->record($proposal, 'sent', 'Proposta enviada ao cliente.', $actor ?? $proposal->user);
 
         return $proposal->load(['customer', 'items', 'publicToken', 'user']);
     }

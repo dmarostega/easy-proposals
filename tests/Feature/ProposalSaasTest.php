@@ -551,4 +551,68 @@ class ProposalSaasTest extends TestCase
         $this->assertSame(ProposalStatus::Approved, $proposal->status);
         $this->assertSame('Landing page', $proposal->title);
     }
+
+    public function test_admin_can_manage_resources_inside_target_user_context_with_audit(): void
+    {
+        $plan = Plan::factory()->unlimited()->create();
+        $admin = User::factory()->create(['plan_id' => $plan->id, 'role' => UserRole::Admin]);
+        $targetUser = User::factory()->create(['plan_id' => $plan->id]);
+
+        $this->actingAs($admin)
+            ->postJson("/admin/usuarios/{$targetUser->id}/clientes", [
+                'name' => 'Cliente administrado',
+                'email' => 'cliente@example.com',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('name', 'Cliente administrado');
+
+        $this->assertDatabaseHas('customers', [
+            'user_id' => $targetUser->id,
+            'name' => 'Cliente administrado',
+        ]);
+        $this->assertSame(0, $admin->customers()->count());
+        $this->assertDatabaseHas('admin_audit_logs', [
+            'admin_user_id' => $admin->id,
+            'target_user_id' => $targetUser->id,
+            'action' => 'target_customer.created',
+        ]);
+    }
+
+    public function test_admin_can_update_finalized_target_proposal_from_admin_context(): void
+    {
+        $plan = Plan::factory()->unlimited()->create();
+        $admin = User::factory()->create(['plan_id' => $plan->id, 'role' => UserRole::Admin]);
+        $targetUser = User::factory()->create(['plan_id' => $plan->id]);
+        $customer = Customer::factory()->create(['user_id' => $targetUser->id]);
+        $proposal = app(ProposalService::class)->create($targetUser, [
+            'customer_id' => $customer->id,
+            'title' => 'Proposta finalizada',
+            'items' => [['description' => 'Servico', 'quantity' => 1, 'unit_price' => 100]],
+        ]);
+        $proposal->update(['status' => ProposalStatus::Approved, 'approved_at' => now()]);
+
+        $this->actingAs($admin)
+            ->putJson("/admin/usuarios/{$targetUser->id}/propostas/{$proposal->id}", [
+                'customer_id' => $customer->id,
+                'title' => 'Proposta alterada pelo admin',
+                'items' => [['description' => 'Servico premium', 'quantity' => 2, 'unit_price' => 150]],
+            ])
+            ->assertOk()
+            ->assertJsonPath('title', 'Proposta alterada pelo admin')
+            ->assertJsonPath('total', '300.00');
+
+        $proposal->refresh();
+        $this->assertSame('Proposta alterada pelo admin', $proposal->title);
+        $this->assertSame(ProposalStatus::Approved, $proposal->status);
+        $this->assertDatabaseHas('proposal_events', [
+            'proposal_id' => $proposal->id,
+            'user_id' => $admin->id,
+            'type' => 'updated',
+        ]);
+        $this->assertDatabaseHas('admin_audit_logs', [
+            'admin_user_id' => $admin->id,
+            'target_user_id' => $targetUser->id,
+            'action' => 'target_proposal.updated',
+        ]);
+    }
 }

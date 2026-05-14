@@ -7,6 +7,7 @@ use App\Mail\ProposalRejectedMail;
 use App\Mail\ProposalSentMail;
 use App\Mail\ProposalViewedMail;
 use App\Models\Proposal;
+use App\Models\User;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
 
@@ -14,7 +15,7 @@ class ProposalDeliveryService
 {
     public function __construct(private readonly ProposalService $proposalService) {}
 
-    public function sendToCustomer(Proposal $proposal): Proposal
+    public function sendToCustomer(Proposal $proposal, ?User $actor = null, bool $allowFinal = false): Proposal
     {
         $proposal->loadMissing(['customer', 'items', 'publicToken', 'user']);
 
@@ -33,7 +34,7 @@ class ProposalDeliveryService
             'user',
         ])));
 
-        return $this->proposalService->markAsSent($proposal)->fresh(['customer', 'items', 'publicToken']);
+        return $this->proposalService->markAsSent($proposal, $actor, $allowFinal)->fresh(['customer', 'items', 'publicToken']);
     }
 
     public function notifyView(Proposal $proposal): void
