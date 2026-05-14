@@ -65,7 +65,7 @@ class UserProposalController extends Controller
     public function send(Request $request, User $user, Proposal $proposal, ProposalDeliveryService $deliveryService, AdminAuditService $audit)
     {
         $this->ensureProposalBelongsToUser($user, $proposal);
-        $proposal = $deliveryService->sendToCustomer($proposal, $request->user(), allowFinal: true);
+        $proposal = $deliveryService->sendToCustomer($proposal, $request->user());
         $audit->record($request, $user, 'target_proposal.sent', $proposal);
 
         return response()->json($proposal);
