@@ -11,7 +11,10 @@ use Illuminate\Validation\ValidationException;
 
 class AuthenticatedSessionController extends Controller
 {
-    public function create() { return view('auth.login'); }
+    public function create()
+    {
+        return view('auth.login');
+    }
 
     public function store(LoginRequest $request): RedirectResponse
     {
@@ -21,7 +24,10 @@ class AuthenticatedSessionController extends Controller
 
         if (! $request->user()?->is_active) {
             Auth::logout();
-            abort(403, 'Usuário inativo.');
+
+            throw ValidationException::withMessages([
+                'email' => 'Usuário inativo. Entre em contato com o administrador.',
+            ]);
         }
 
         $request->session()->regenerate();

@@ -2,12 +2,18 @@
 
 namespace App\Http\Requests;
 
+use App\Http\Requests\Concerns\PortugueseValidationMessages;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 class StoreProposalRequest extends FormRequest
 {
-    public function authorize(): bool { return $this->user() !== null; }
+    use PortugueseValidationMessages;
+
+    public function authorize(): bool
+    {
+        return $this->user() !== null;
+    }
 
     public function rules(): array
     {
