@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ $title ?? 'Proposta Fácil' }}</title>
+    @include('partials.favicons')
     @vite(['resources/css/app.css', 'resources/js/app.ts'])
 </head>
 <body class="bg-slate-100 text-slate-900">

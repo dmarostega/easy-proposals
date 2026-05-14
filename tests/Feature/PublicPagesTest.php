@@ -14,6 +14,7 @@ class PublicPagesTest extends TestCase
     {
         $this->get(route('home'))
             ->assertOk()
+            ->assertSee('href="http://localhost/favicon.svg"', false)
             ->assertSee('Monte propostas rapidamente')
             ->assertSee('Envie um link de aprovacao')
             ->assertDontSee('Conteudo institucional publico');
