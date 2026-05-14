@@ -61,11 +61,9 @@ class ProposalService
         });
     }
 
-    public function markAsSent(Proposal $proposal, ?User $actor = null, bool $allowFinal = false): Proposal
+    public function markAsSent(Proposal $proposal, ?User $actor = null): Proposal
     {
-        if (! $allowFinal) {
-            $this->assertProposalIsEditable($proposal);
-        }
+        $this->assertProposalIsEditable($proposal);
 
         $this->ensurePublicToken($proposal);
 
@@ -95,7 +93,7 @@ class ProposalService
         }
     }
 
-    private function assertProposalIsEditable(Proposal $proposal): void
+    public function assertProposalIsEditable(Proposal $proposal): void
     {
         if (in_array($proposal->status, [ProposalStatus::Approved, ProposalStatus::Rejected, ProposalStatus::Expired], true)) {
             throw ValidationException::withMessages([

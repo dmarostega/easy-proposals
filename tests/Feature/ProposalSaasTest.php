@@ -615,4 +615,38 @@ class ProposalSaasTest extends TestCase
             'action' => 'target_proposal.updated',
         ]);
     }
+
+    public function test_admin_can_email_finalized_target_proposal_without_changing_status(): void
+    {
+        Mail::fake();
+
+        $plan = Plan::factory()->unlimited()->create();
+        $admin = User::factory()->create(['plan_id' => $plan->id, 'role' => UserRole::Admin]);
+        $targetUser = User::factory()->create(['plan_id' => $plan->id]);
+        $customer = Customer::factory()->create(['user_id' => $targetUser->id, 'email' => 'cliente@example.com']);
+        $proposal = app(ProposalService::class)->create($targetUser, [
+            'customer_id' => $customer->id,
+            'title' => 'Proposta aprovada',
+            'items' => [['description' => 'Servico', 'quantity' => 1, 'unit_price' => 100]],
+        ]);
+        $proposal->update(['status' => ProposalStatus::Approved, 'approved_at' => now()]);
+
+        $this->actingAs($admin)
+            ->postJson("/admin/usuarios/{$targetUser->id}/propostas/{$proposal->id}/enviar")
+            ->assertOk()
+            ->assertJsonPath('status', ProposalStatus::Approved->value);
+
+        $proposal->refresh();
+        $this->assertSame(ProposalStatus::Approved, $proposal->status);
+        Mail::assertSent(ProposalSentMail::class, fn (ProposalSentMail $mail) => $mail->hasTo('cliente@example.com'));
+        $this->assertDatabaseMissing('proposal_events', [
+            'proposal_id' => $proposal->id,
+            'type' => 'sent',
+        ]);
+        $this->assertDatabaseHas('admin_audit_logs', [
+            'admin_user_id' => $admin->id,
+            'target_user_id' => $targetUser->id,
+            'action' => 'target_proposal.email_sent',
+        ]);
+    }
 }
