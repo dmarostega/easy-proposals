@@ -2,10 +2,10 @@
 
 @php
     $planFeatureText = function ($plan): array {
-        $proposalLimit = $plan->monthly_proposal_limit
+        $proposalLimit = $plan->monthly_proposal_limit !== null
             ? $plan->monthly_proposal_limit.' propostas por mes'
             : 'Propostas ilimitadas';
-        $customerLimit = $plan->customer_limit
+        $customerLimit = $plan->customer_limit !== null
             ? $plan->customer_limit.' clientes cadastrados'
             : 'Clientes ilimitados';
 
