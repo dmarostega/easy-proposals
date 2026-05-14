@@ -1,4 +1,69 @@
 <?php
+
 namespace App\Http\Controllers\Public;
+
 use App\Http\Controllers\Controller;
-class PageController extends Controller { public function home(){return view('public.page',['page'=>'home','title'=>'Proposta Fácil - propostas comerciais profissionais','description'=>'Crie propostas, orçamentos e links públicos de aprovação para seus clientes.']);} public function features(){return view('public.page',['page'=>'recursos','title'=>'Recursos do Proposta Fácil','description'=>'Clientes, serviços reutilizáveis, propostas com aprovação pública, PDF e painel administrativo.']);} public function pricing(){return view('public.page',['page'=>'precos','title'=>'Preços do Proposta Fácil','description'=>'Planos Gratuito, Pro e Plus para freelancers e pequenos negócios.']);} public function terms(){return view('public.page',['page'=>'termos','title'=>'Termos de Uso','description'=>'Termos de uso do Proposta Fácil.']);} public function privacy(){return view('public.page',['page'=>'privacidade','title'=>'Política de Privacidade','description'=>'Política de privacidade do Proposta Fácil.']);}}
+use App\Models\Plan;
+use Illuminate\Contracts\View\View;
+use Illuminate\Database\Eloquent\Collection;
+
+class PageController extends Controller
+{
+    public function home(): View
+    {
+        return $this->render('home', [
+            'title' => 'Proposta Facil - propostas comerciais profissionais',
+            'description' => 'Crie propostas, orcamentos e links publicos de aprovacao para seus clientes.',
+        ]);
+    }
+
+    public function features(): View
+    {
+        return $this->render('recursos', [
+            'title' => 'Recursos do Proposta Facil',
+            'description' => 'Clientes, servicos reutilizaveis, propostas com aprovacao publica, PDF e painel administrativo.',
+        ]);
+    }
+
+    public function pricing(): View
+    {
+        return $this->render('precos', [
+            'title' => 'Precos do Proposta Facil',
+            'description' => 'Planos Gratuito, Pro e Plus para freelancers, prestadores de servico e pequenos negocios.',
+        ]);
+    }
+
+    public function terms(): View
+    {
+        return $this->render('termos', [
+            'title' => 'Termos de Uso',
+            'description' => 'Termos de uso do Proposta Facil para contas, propostas, clientes e envio de links publicos.',
+        ]);
+    }
+
+    public function privacy(): View
+    {
+        return $this->render('privacidade', [
+            'title' => 'Politica de Privacidade',
+            'description' => 'Como o Proposta Facil trata dados de usuarios, clientes, propostas e eventos da plataforma.',
+        ]);
+    }
+
+    private function render(string $page, array $metadata): View
+    {
+        return view('public.page', [
+            ...$metadata,
+            'page' => $page,
+            'plans' => $this->activePlans(),
+        ]);
+    }
+
+    private function activePlans(): Collection
+    {
+        return Plan::query()
+            ->where('is_active', true)
+            ->orderBy('monthly_price_cents')
+            ->orderBy('id')
+            ->get();
+    }
+}
