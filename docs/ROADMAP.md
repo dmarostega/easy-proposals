@@ -38,7 +38,7 @@
 - [x] Filtros no Dashboard
 - [x] Filtros e paginação em listagens (Propostas, Clientes, Serviços)
 - [x] Input de pesquisa em selects (Clientes em Proposta)
-- [ ] Validar se usuário Admin do sistema deve ter menus de propostas, clientes, serviços e perfil da marca
-- [ ] Gerar conteudos, pagina Inicial, termos e privacidade,
-- [ ] melhorar recursos e preços (está sem valor)
+- [x] Validar se usuário Admin do sistema deve ter menus de propostas, clientes, serviços e perfil da marca
+- [x] Gerar conteudos, pagina Inicial, termos e privacidade,
+- [x] melhorar recursos e preços (está sem valor)
 - [ ] Verificar / Adicionar envio de email reais, verificar se permite personalizar email tanto no admin quanto para usuário
