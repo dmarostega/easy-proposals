@@ -27,6 +27,7 @@ class ProposalDeliveryService
     public function sendToCustomerWithoutStatusChange(Proposal $proposal): Proposal
     {
         $proposal->loadMissing(['customer', 'items', 'publicToken', 'user']);
+        $this->proposalService->assertProposalIsEditable($proposal);
         $this->sendProposalMail($proposal);
 
         return $proposal->fresh(['customer', 'items', 'publicToken']);

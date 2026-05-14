@@ -616,7 +616,7 @@ class ProposalSaasTest extends TestCase
         ]);
     }
 
-    public function test_admin_can_email_finalized_target_proposal_without_changing_status(): void
+    public function test_admin_cannot_email_finalized_target_proposal(): void
     {
         Mail::fake();
 
@@ -633,20 +633,81 @@ class ProposalSaasTest extends TestCase
 
         $this->actingAs($admin)
             ->postJson("/admin/usuarios/{$targetUser->id}/propostas/{$proposal->id}/enviar")
-            ->assertOk()
-            ->assertJsonPath('status', ProposalStatus::Approved->value);
+            ->assertUnprocessable();
 
         $proposal->refresh();
         $this->assertSame(ProposalStatus::Approved, $proposal->status);
-        Mail::assertSent(ProposalSentMail::class, fn (ProposalSentMail $mail) => $mail->hasTo('cliente@example.com'));
+        Mail::assertNothingSent();
         $this->assertDatabaseMissing('proposal_events', [
             'proposal_id' => $proposal->id,
             'type' => 'sent',
         ]);
-        $this->assertDatabaseHas('admin_audit_logs', [
+        $this->assertDatabaseMissing('admin_audit_logs', [
             'admin_user_id' => $admin->id,
             'target_user_id' => $targetUser->id,
             'action' => 'target_proposal.email_sent',
+        ]);
+    }
+
+    public function test_admin_pdf_download_uses_target_plan_and_admin_audit_without_owner_event(): void
+    {
+        $plan = Plan::factory()->unlimited()->create(['allows_pdf' => true]);
+        $admin = User::factory()->create(['plan_id' => $plan->id, 'role' => UserRole::Admin]);
+        $targetUser = User::factory()->create(['plan_id' => $plan->id]);
+        $customer = Customer::factory()->create(['user_id' => $targetUser->id]);
+        $proposal = app(ProposalService::class)->create($targetUser, [
+            'customer_id' => $customer->id,
+            'title' => 'Projeto PDF admin',
+            'items' => [['description' => 'Servico', 'quantity' => 1, 'unit_price' => 100]],
+        ]);
+
+        $response = $this->actingAs($admin)
+            ->get("/admin/usuarios/{$targetUser->id}/propostas/{$proposal->id}/pdf");
+
+        $response->assertOk();
+        $this->assertSame('application/pdf', $response->headers->get('content-type'));
+        $this->assertStringStartsWith('%PDF-', $response->getContent());
+        $this->assertDatabaseMissing('proposal_events', [
+            'proposal_id' => $proposal->id,
+            'type' => 'pdf_downloaded',
+        ]);
+        $this->assertDatabaseHas('admin_audit_logs', [
+            'admin_user_id' => $admin->id,
+            'target_user_id' => $targetUser->id,
+            'action' => 'target_proposal.pdf_downloaded',
+            'resource_type' => Proposal::class,
+            'resource_id' => $proposal->id,
+        ]);
+    }
+
+    public function test_admin_pdf_download_respects_target_plan_entitlement(): void
+    {
+        $admin = User::factory()->create([
+            'plan_id' => Plan::factory()->unlimited()->create(['allows_pdf' => true])->id,
+            'role' => UserRole::Admin,
+        ]);
+        $targetUser = User::factory()->create([
+            'plan_id' => Plan::factory()->create(['allows_pdf' => false])->id,
+        ]);
+        $customer = Customer::factory()->create(['user_id' => $targetUser->id]);
+        $proposal = app(ProposalService::class)->create($targetUser, [
+            'customer_id' => $customer->id,
+            'title' => 'Projeto sem PDF',
+            'items' => [['description' => 'Servico', 'quantity' => 1, 'unit_price' => 100]],
+        ]);
+
+        $this->actingAs($admin)
+            ->get("/admin/usuarios/{$targetUser->id}/propostas/{$proposal->id}/pdf")
+            ->assertForbidden();
+
+        $this->assertDatabaseMissing('proposal_events', [
+            'proposal_id' => $proposal->id,
+            'type' => 'pdf_downloaded',
+        ]);
+        $this->assertDatabaseMissing('admin_audit_logs', [
+            'admin_user_id' => $admin->id,
+            'target_user_id' => $targetUser->id,
+            'action' => 'target_proposal.pdf_downloaded',
         ]);
     }
 }

@@ -80,11 +80,16 @@ class UserProposalController extends Controller
         return response()->noContent();
     }
 
-    public function pdf(User $user, Proposal $proposal, ProposalPdfService $pdfService)
+    public function pdf(Request $request, User $user, Proposal $proposal, ProposalPdfService $pdfService, AdminAuditService $audit)
     {
         $this->ensureProposalBelongsToUser($user, $proposal);
+        abort_unless($proposal->user->plan?->allows_pdf, 403, 'O plano do usuário não permite PDF.');
 
-        return $pdfService->download($proposal->load('customer', 'items', 'user'));
+        $proposal->load('customer', 'items', 'user');
+        $response = $pdfService->downloadWithoutEvent($proposal);
+        $audit->record($request, $user, 'target_proposal.pdf_downloaded', $proposal);
+
+        return $response;
     }
 
     private function ensureProposalBelongsToUser(User $user, Proposal $proposal): void
