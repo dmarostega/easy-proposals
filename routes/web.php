@@ -41,6 +41,8 @@ Route::post('/p/{token}/recusar', [PublicProposalController::class, 'reject'])->
 Route::middleware(['auth', 'active'])->group(function (): void {
     Route::get('/dashboard', DashboardController::class)->name('dashboard');
     Route::get('/app', AppPageController::class)->name('app');
+    Route::get('/conta', AppPageController::class)->name('account.edit');
+    Route::put('/conta', [ProfileController::class, 'updateAccount'])->name('account.update');
     Route::get('/perfil', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::put('/perfil', [ProfileController::class, 'update'])->name('profile.update');
     Route::apiResource('clientes', CustomerController::class)->parameters(['clientes' => 'customer']);
